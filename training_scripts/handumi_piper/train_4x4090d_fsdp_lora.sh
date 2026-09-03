@@ -29,10 +29,13 @@ for required_path in "${DATA_ROOT}" "${BASE_PARAMS}" "${NORM_STATS}"; do
 done
 
 (cd "${VENDOR_DIR}" && sha256sum --check SHA256SUMS)
-/.venv/bin/python -m pip install --no-deps --disable-pip-version-check \
-    --target "${RUNTIME_PYTHONPATH}" \
+# The production image intentionally has no pip in /.venv. These are pure-Python
+# wheels, so extract them directly into an isolated task-local import directory.
+for wheel in \
     "${VENDOR_DIR}/accelerate-1.10.1-py3-none-any.whl" \
-    "${VENDOR_DIR}/lerobot-0.4.4-py3-none-any.whl"
+    "${VENDOR_DIR}/lerobot-0.4.4-py3-none-any.whl"; do
+    /.venv/bin/python -m zipfile -e "${wheel}" "${RUNTIME_PYTHONPATH}"
+done
 
 GPU_COUNT="$(nvidia-smi --query-gpu=index --format=csv,noheader | wc -l)"
 if [[ "${GPU_COUNT}" -ne "${EXPECTED_GPU_COUNT}" ]]; then
