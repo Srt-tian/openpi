@@ -65,6 +65,8 @@ class AssetsConfig:
 class DataConfig:
     # LeRobot repo id. If None, fake data will be created.
     repo_id: str | None = None
+    # Optional local dataset root. This avoids a Hub download when data is already mounted.
+    root: str | None = None
     # Directory within the assets directory containing the data assets.
     asset_id: str | None = None
     # Contains precomputed normalization stats. If None, normalization will not be performed.
@@ -167,6 +169,8 @@ class ModelTransformFactory(GroupFactory):
 class DataConfigFactory(abc.ABC):
     # The LeRobot repo id.
     repo_id: str = tyro.MISSING
+    # Optional local dataset root.
+    root: str | None = None
     # Determines how the assets will be loaded.
     assets: AssetsConfig = dataclasses.field(default_factory=AssetsConfig)
     # Base config that will be updated by the factory.
@@ -182,6 +186,7 @@ class DataConfigFactory(abc.ABC):
         return dataclasses.replace(
             self.base_config or DataConfig(),
             repo_id=repo_id,
+            root=self.root,
             asset_id=asset_id,
             norm_stats=self._load_norm_stats(epath.Path(self.assets.assets_dir or assets_dirs), asset_id),
             use_quantile_norm=model_config.model_type != ModelType.PI0,
@@ -594,6 +599,67 @@ _CONFIGS = [
             default_prompt="open the tupperware and put the food on the plate",
         ),
         policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
+    ),
+    #
+    # Fine-tuning Piper joint-space actions converted from HandUMI trajectories.
+    #
+    TrainConfig(
+        name="pi05_handumi_tblock_piper_joint_lora",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_horizon=50,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ),
+        data=LeRobotAlohaDataConfig(
+            repo_id="handumi_tblock_all_piper_clean_piper_joints",
+            root="/workspace/user/datasets/handumi_tblock_all_piper_clean_piper_joints",
+            # The dataset already uses Piper joint radians and gripper width in meters.
+            # Keep those units instead of applying the ALOHA-to-PI calibration transform.
+            adapt_to_pi=False,
+            use_delta_joint_actions=True,
+            default_prompt="put the t block in the puzzle",
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.workspace",
+                                "cam_left_wrist": "observation.images.left_wrist",
+                                "cam_right_wrist": "observation.images.right_wrist",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                        }
+                    )
+                ]
+            ),
+            base_config=DataConfig(prompt_from_task=False),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("/pfs/user/Models/openpi/pi05_base/params"),
+        assets_base_dir="/pfs/user/Models/openpi_handumi_piper/assets",
+        checkpoint_base_dir="/pfs/user/Models/openpi_handumi_piper/checkpoints",
+        batch_size=8,
+        num_workers=8,
+        num_train_steps=20_000,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=2.5e-5,
+            decay_steps=20_000,
+            decay_lr=2.5e-6,
+        ),
+        optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
+        freeze_filter=pi0_config.Pi0Config(
+            pi05=True,
+            action_horizon=50,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ).get_freeze_filter(),
+        ema_decay=None,
+        log_interval=100,
+        save_interval=2_500,
+        keep_period=10_000,
+        fsdp_devices=4,
     ),
     #
     # Inference DROID configs.
