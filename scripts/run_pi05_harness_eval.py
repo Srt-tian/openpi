@@ -39,10 +39,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--host", required=True)
     parser.add_argument("--port", required=True, type=int)
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--mode", required=True, choices=("harness", "parity"))
+    parser.add_argument("--mode", required=True, choices=("harness", "parity", "legacy"))
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument("--max-episode-seconds", type=float, default=1200.0)
     parser.add_argument("--api-key-env", default="OPENPI_API_KEY")
+    parser.add_argument("--record-payload-hashes", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -262,11 +263,69 @@ def preflight_identity(
     return verified
 
 
-def make_inner_transport_factory(helpers, args: argparse.Namespace, uri: str):
+def _array_hash_receipt(value: Any) -> dict[str, Any]:
+    array = np.ascontiguousarray(np.asarray(value))
+    return {
+        "sha256": hashlib.sha256(array.tobytes()).hexdigest(),
+        "shape": list(array.shape),
+        "dtype": str(array.dtype),
+    }
+
+
+class PayloadHashTransport:
+    """Read-only request/response digest recorder around an actual transport."""
+
+    def __init__(self, inner: Any, records: list[dict[str, Any]]):
+        self.inner, self.records = inner, records
+
+    @property
+    def metadata(self):
+        return self.inner.metadata
+
+    def infer(self, payload: Mapping[str, Any]):
+        record = {
+            "inference_call": len(self.records),
+            "observation_image": _array_hash_receipt(payload["observation/image"]),
+            "observation_wrist_image": _array_hash_receipt(payload["observation/wrist_image"]),
+            "observation_state": _array_hash_receipt(payload["observation/state"]),
+            "prompt": str(payload["prompt"]),
+            "policy_id": str(payload["policy_id"]),
+            "policy_seed": int(payload["policy_seed"]),
+            "response_actions": None,
+            "status": "error",
+        }
+        self.records.append(record)
+        try:
+            response = self.inner.infer(payload)
+            if isinstance(response, Mapping) and "actions" in response:
+                record["response_actions"] = _array_hash_receipt(response["actions"])
+            record["status"] = "ok"
+            return response
+        except Exception as exc:
+            record["error_type"] = type(exc).__name__
+            raise
+
+    def close(self):
+        self.inner.close()
+
+
+def make_inner_transport_factory(
+    helpers,
+    args: argparse.Namespace,
+    uri: str,
+    payload_hash_records: list[dict[str, Any]] | None = None,
+):
     OpenPITransport, _ = helpers.import_physicalrsi(args.roborsi_root)
-    return lambda: OpenPITransport(
-        uri, timeout_s=args.timeout_seconds, api_key_env=args.api_key_env
-    )
+
+    def create():
+        inner = OpenPITransport(
+            uri, timeout_s=args.timeout_seconds, api_key_env=args.api_key_env
+        )
+        if payload_hash_records is not None:
+            return PayloadHashTransport(inner, payload_hash_records)
+        return inner
+
+    return create
 
 
 def _reset_old_environment(helpers, case: Mapping[str, Any]):
@@ -308,12 +367,15 @@ def _run_old_loop(
     np.random.seed(ambient_seed)
     env = transport = None
     frames, trace = [], []
+    payload_hashes: list[dict[str, Any]] = []
     try:
         env, task, raw, init_asset = _reset_old_environment(helpers, case)
         OpenPITransport, Pi05Skill = helpers.import_physicalrsi(args.roborsi_root)
         inner = OpenPITransport(
             uri, timeout_s=args.timeout_seconds, api_key_env=args.api_key_env
         )
+        if getattr(args, "record_payload_hashes", False):
+            inner = PayloadHashTransport(inner, payload_hashes)
         transport = helpers.EpisodeIdentityTransport(inner, dict(expected_identity))
         skill = Pi05Skill(
             transport,
@@ -345,6 +407,7 @@ def _run_old_loop(
             "frames": frames,
             "service_metadata": copy.deepcopy(transport.verified_metadata),
             "init_asset": init_asset,
+            "payload_hashes": payload_hashes,
         }
     finally:
         if transport is not None:
@@ -377,9 +440,12 @@ def _run_new_loop(
     expected_identity: Mapping[str, Any],
     case: Mapping[str, Any],
     harness: Mapping[str, Any],
+    payload_hash_records: list[dict[str, Any]] | None = None,
 ) -> backend.BackendEpisode:
     ambient_seed, _ = validate_case_seeds(case)
-    inner_factory = make_inner_transport_factory(helpers, args, uri)
+    inner_factory = make_inner_transport_factory(
+        helpers, args, uri, payload_hash_records=payload_hash_records
+    )
     transport_factory = backend.episode_identity_transport_factory(
         helpers, inner_factory, expected_identity
     )
@@ -471,6 +537,7 @@ def summary(rows: list[dict[str, Any]], planned: int, mode: str) -> dict[str, An
         "errors": sum(row.get("status") == "error" for row in rows),
         "successes": sum(row.get("success") is True for row in rows),
         "cases": rows,
+        "execution_backend": mode,
     }
     if mode == "parity":
         result["parity_equal"] = (
@@ -552,6 +619,8 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             "roborsi_registry": _sha256(args.roborsi_root / "src/roborsi/self_harness/registry.py"),
         },
         "parity_harness": "registry_materialized_full_cap_single_stage" if args.mode == "parity" else None,
+        "execution_backend": args.mode,
+        "payload_hash_recording": bool(args.record_payload_hashes),
     }
     manifest["manifest_sha256"] = hashlib.sha256(
         json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
@@ -562,7 +631,13 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     atomic_json(output / "summary.json", summary(rows, len(cases), args.mode))
     for index, case in enumerate(cases):
         episode_path = episodes / _case_filename(index, case)
-        row = {**case, "status": "error", "success": False, "episode": str(episode_path.relative_to(output))}
+        row = {
+            **case,
+            "status": "error",
+            "success": False,
+            "execution_backend": args.mode,
+            "episode": str(episode_path.relative_to(output)),
+        }
         try:
             task = tasks[_task_key(case["suite"], case["task_id"])]
             if args.mode == "parity":
@@ -580,8 +655,16 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 old = _run_old_loop(
                     helpers, args, uri, verified_identity, case, instruction, action_cap
                 )
+                runner_payload_hashes = [] if args.record_payload_hashes else None
                 new = _run_new_loop(
-                    api, helpers, args, uri, verified_identity, case, selected_harness
+                    api,
+                    helpers,
+                    args,
+                    uri,
+                    verified_identity,
+                    case,
+                    selected_harness,
+                    payload_hash_records=runner_payload_hashes,
                 )
                 parity = compare_parity(old, new)
                 old_video = save_video(
@@ -598,6 +681,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                         "report": new.report,
                         "environment_actions": new.environment_actions,
                         "policy_calls": new.policy_calls,
+                        "payload_hashes": runner_payload_hashes or [],
                     },
                     "parity": parity,
                     "videos": {"old": old_video, "runner": new_video},
@@ -615,7 +699,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 )
                 if runner_error:
                     row["error_type"] = new.report.get("error_type", "RunnerError")
-            else:
+            elif args.mode == "harness":
                 harness = backend.harness_for_task(
                     api,
                     proposal,
@@ -624,7 +708,17 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                     instruction=task["instruction"],
                     official_cap=task["max_steps"],
                 )
-                new = _run_new_loop(api, helpers, args, uri, verified_identity, case, harness)
+                payload_hashes = [] if args.record_payload_hashes else None
+                new = _run_new_loop(
+                    api,
+                    helpers,
+                    args,
+                    uri,
+                    verified_identity,
+                    case,
+                    harness,
+                    payload_hash_records=payload_hashes,
+                )
                 video = save_video(videos / f"{index:03d}_harness.mp4", new.trace_frames)
                 evidence = {
                     "case": case,
@@ -633,6 +727,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                         "report": new.report,
                         "environment_actions": new.environment_actions,
                         "policy_calls": new.policy_calls,
+                        "payload_hashes": payload_hashes or [],
                     },
                     "video": video,
                 }
@@ -640,6 +735,30 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                     status=new.report["status"],
                     success=bool(new.report["success"]),
                     steps=new.report["steps"],
+                    execution_backend="harness",
+                )
+            else:
+                old = _run_old_loop(
+                    helpers,
+                    args,
+                    uri,
+                    verified_identity,
+                    case,
+                    task["instruction"],
+                    task["max_steps"],
+                )
+                video = save_video(videos / f"{index:03d}_legacy.mp4", old.pop("frames"))
+                evidence = {
+                    "case": case,
+                    "execution_backend": "legacy",
+                    "legacy": old,
+                    "video": video,
+                }
+                row.update(
+                    status=old["status"],
+                    success=bool(old["success"]),
+                    steps=old["steps"],
+                    execution_backend="legacy",
                 )
         except Exception as exc:
             evidence = {

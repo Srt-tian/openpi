@@ -2,21 +2,21 @@
   "batches": [
     {
       "cases": "configs/pi05_repeat_probe/cases_worker3_all.json",
-      "mode": "harness",
+      "mode": "legacy",
       "name": "worker3_base",
       "registry": "configs/pi05_harness/registry.json",
       "routes": "configs/pi05_harness/routes_base.json"
     },
     {
       "cases": "configs/pi05_repeat_probe/cases_worker3_libero_spatial.json",
-      "mode": "harness",
+      "mode": "legacy",
       "name": "worker3_plugin_libero_spatial",
       "registry": "configs/pi05_harness/registry.json",
       "routes": "configs/pi05_harness/routes_plugins.json"
     },
     {
       "cases": "configs/pi05_repeat_probe/cases_worker3_libero_goal.json",
-      "mode": "harness",
+      "mode": "legacy",
       "name": "worker3_plugin_libero_goal",
       "registry": "configs/pi05_harness/registry.json",
       "routes": "configs/pi05_harness/routes_plugins.json"

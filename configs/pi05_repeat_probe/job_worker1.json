@@ -2,14 +2,14 @@
   "batches": [
     {
       "cases": "configs/pi05_repeat_probe/cases_worker1_all.json",
-      "mode": "harness",
+      "mode": "legacy",
       "name": "worker1_base",
       "registry": "configs/pi05_harness/registry.json",
       "routes": "configs/pi05_harness/routes_base.json"
     },
     {
       "cases": "configs/pi05_repeat_probe/cases_worker1_libero_10.json",
-      "mode": "harness",
+      "mode": "legacy",
       "name": "worker1_plugin_libero_10",
       "registry": "configs/pi05_harness/registry.json",
       "routes": "configs/pi05_harness/routes_plugins.json"

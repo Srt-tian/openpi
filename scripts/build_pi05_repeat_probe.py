@@ -48,7 +48,7 @@ def cases(rows: tuple[tuple[str, int, int], ...]) -> list[dict]:
 
 
 def batch(name: str, routes: str, case_path: str) -> dict:
-    return {"name": name, "mode": "harness", "registry": REGISTRY,
+    return {"name": name, "mode": "legacy", "registry": REGISTRY,
             "routes": routes, "cases": case_path}
 
 
@@ -82,6 +82,8 @@ def validate_plan(plan: dict[int, list[dict]]) -> dict:
             "unique_arm_case_replicates": len(identities),
             "exact_2x14x10_coverage": True,
             "policy_seed_formula": "7 + joint40_task_number * 50 + init_id + replicate_id * 1000000007",
+            "ambient_seed_formula": "7 + joint40_task_number * 50 + init_id; fixed across replicates",
+            "execution_backend": "legacy execute_policy_steps; independent of harness migration parity gate",
             "inference_call_seed_stride": 1000003,
             "environment_seed": 7, "routing_scope": "task only; never init or replicate"}
 

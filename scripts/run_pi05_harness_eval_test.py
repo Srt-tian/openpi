@@ -261,6 +261,7 @@ class ExecutePersistenceTest(unittest.TestCase):
             timeout_seconds=30.0,
             max_episode_seconds=1200.0,
             api_key_env="OPENPI_API_KEY",
+            record_payload_hashes=False,
         )
 
     @staticmethod
@@ -361,6 +362,67 @@ class ExecutePersistenceTest(unittest.TestCase):
             self.assertIn("old", evidence)
             self.assertIn("runner", evidence)
             self.assertEqual(evidence["harness"]["stages"][0]["instruction"], "original")
+
+    def test_legacy_mode_persists_original_loop_backend(self):
+        cases = [{"suite": "libero_object", "task_id": 4, "init_id": 1,
+                  "replicate_id": 9}]
+        tasks = {"libero_object/4": {"instruction": "original", "max_steps": 280}}
+        old = {
+            "status": "failure", "success": False, "steps": 280, "inference_calls": 56,
+            "trace": [], "frames": [], "service_metadata": {"policy_id": "object"},
+            "init_asset": {"count": 50}, "payload_hashes": [],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.make_args(directory, "legacy", cases)
+            patches = self.patches(tasks, [])
+            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], mock.patch.object(
+                cli, "_run_old_loop", return_value=old
+            ) as run_old:
+                result = cli.execute(args)
+            self.assertEqual(result["errors"], 0)
+            self.assertEqual(result["cases"][0]["execution_backend"], "legacy")
+            self.assertEqual(result["cases"][0]["status"], "failure")
+            self.assertEqual(run_old.call_args.args[-2:], ("original", 280))
+            evidence_path = args.output / "episodes/000_libero_object_4_1_r09.json"
+            evidence = json.loads(evidence_path.read_text())
+            self.assertEqual(evidence["execution_backend"], "legacy")
+
+
+class PayloadHashTransportTest(unittest.TestCase):
+    def test_records_real_payload_bytes_seed_prompt_and_response_actions(self):
+        class Inner:
+            metadata = {"policy_id": "object"}
+
+            def infer(self, payload):
+                return {"actions": np.arange(35, dtype=np.float32).reshape(5, 7)}
+
+            def close(self):
+                self.closed = True
+
+        records = []
+        inner = Inner()
+        transport = cli.PayloadHashTransport(inner, records)
+        payload = {
+            "observation/image": np.zeros((2, 2, 3), np.uint8),
+            "observation/wrist_image": np.ones((2, 2, 3), np.uint8),
+            "observation/state": np.arange(8, dtype=np.float64),
+            "prompt": "original",
+            "policy_id": "object",
+            "policy_seed": 9_000_000_771,
+        }
+        response = transport.infer(payload)
+        self.assertEqual(records[0]["policy_seed"], payload["policy_seed"])
+        self.assertEqual(records[0]["prompt"], "original")
+        self.assertEqual(records[0]["status"], "ok")
+        self.assertEqual(
+            records[0]["observation_image"]["sha256"],
+            cli.hashlib.sha256(payload["observation/image"].tobytes()).hexdigest(),
+        )
+        self.assertEqual(
+            records[0]["response_actions"]["sha256"],
+            cli.hashlib.sha256(response["actions"].tobytes()).hexdigest(),
+        )
+        self.assertIs(transport.metadata, inner.metadata)
 
 
 if __name__ == "__main__":

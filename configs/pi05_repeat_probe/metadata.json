@@ -1,4 +1,5 @@
 {
+  "ambient_seed_formula": "7 + joint40_task_number * 50 + init_id; fixed across replicates",
   "arms": [
     "base",
     "plugin"
@@ -7,6 +8,7 @@
   "environment_seed": 7,
   "episodes": 280,
   "exact_2x14x10_coverage": true,
+  "execution_backend": "legacy execute_policy_steps; independent of harness migration parity gate",
   "inference_call_seed_stride": 1000003,
   "plugin_episodes": 140,
   "policy_seed_formula": "7 + joint40_task_number * 50 + init_id + replicate_id * 1000000007",

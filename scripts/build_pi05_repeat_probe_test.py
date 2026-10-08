@@ -23,7 +23,7 @@ class BuildRepeatProbeTest(unittest.TestCase):
                 self.assertEqual(job["schema"], "pi05_harness_worker.v1")
                 self.assertEqual(len(job["batches"]), count)
                 self.assertTrue(all(set(row) == {"name", "mode", "registry", "routes", "cases"}
-                                    and row["mode"] == "harness" for row in job["batches"]))
+                                    and row["mode"] == "legacy" for row in job["batches"]))
             all_cases = []
             for worker in range(5):
                 value = json.loads((output / f"cases_worker{worker}_all.json").read_text())

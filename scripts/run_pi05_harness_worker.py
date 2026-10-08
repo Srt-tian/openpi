@@ -73,7 +73,7 @@ def main():
         if not name.replace("_", "").replace("-", "").isalnum() or name in names:
             raise ValueError("invalid or duplicate batch name")
         names.add(name)
-        if batch["mode"] not in ("parity", "harness"):
+        if batch["mode"] not in ("parity", "harness", "legacy"):
             raise ValueError("unknown evaluation mode")
         paths = {key: checked_path(root, batch[key]) for key in ("registry", "routes", "cases")}
         routes = json.loads(paths["routes"].read_text())
@@ -146,7 +146,8 @@ def main():
                          "--eval-helpers", str(root / "scripts/eval_pi05_plugins.py"),
                          "--host", "127.0.0.1", "--port", str(args.port),
                          "--output", str(args.output / batch["name"]), "--mode", batch["mode"],
-                         "--timeout-seconds", "300", "--max-episode-seconds", "1200"]
+                         "--timeout-seconds", "300", "--max-episode-seconds", "1200",
+                         "--record-payload-hashes"]
             for key, path in paths.items():
                 eval_args.extend(["--" + key, str(path)])
             # Do not resolve policy_python: venv symlinks must keep their venv context.
