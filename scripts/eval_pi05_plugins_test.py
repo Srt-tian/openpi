@@ -137,6 +137,10 @@ class EvalPi05PluginsTest(unittest.TestCase):
         self.assertEqual(MODULE.validated_metadata_subset(metadata, "base", "a" * 64), metadata)
         with self.assertRaisesRegex(ValueError, "must attest"):
             MODULE.validated_metadata_subset(dict(metadata, adapter_sha256="b" * 64), "base", "a" * 64)
+        missing = dict(metadata)
+        del missing["adapter_sha256"]
+        with self.assertRaisesRegex(ValueError, "must attest"):
+            MODULE.validated_metadata_subset(missing, "base", "a" * 64)
 
 
 if __name__ == "__main__":

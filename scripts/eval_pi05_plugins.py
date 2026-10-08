@@ -144,7 +144,7 @@ def validated_metadata_subset(metadata: Any, policy_id: str, checkpoint_sha256: 
         raise ValueError("service metadata does not match fixed policy/checkpoint/seed protocol")
     adapter = metadata.get("adapter_sha256")
     if policy_id == "base":
-        if adapter is not None:
+        if "adapter_sha256" not in metadata or adapter is not None:
             raise ValueError("base service metadata must attest adapter_sha256=null")
     elif (not isinstance(adapter, str) or len(adapter) != 64
           or any(char not in "0123456789abcdef" for char in adapter)):
