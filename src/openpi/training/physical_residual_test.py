@@ -168,6 +168,15 @@ def test_eval_head_never_observes_gt_valid_horizon(monkeypatch):
     np.testing.assert_array_equal(head.seen[-1],mask)
 
 
+@pytest.mark.parametrize("valid_count",[1,5])
+def test_jitted_partial_prefix_loss_is_finite(valid_count):
+    base=jnp.zeros((2,10,32));target=jnp.ones((2,10,32));residual=jnp.full((2,10,7),-.1)
+    gate=jnp.full((2,10,1),.25);mask=(jnp.arange(10)[None,:]<valid_count).repeat(2,axis=0)
+    fn=jax.jit(lambda:physical_residual_loss(base_velocity=base,residual7=residual,gate=gate,
+      target_velocity=target,task_ids=jnp.array([0,1]),num_tasks=2,valid_horizon=mask,suite_update=500)[0])
+    assert jnp.isfinite(fn())
+
+
 def test_training_wrapper_one_flow_call_and_head_only_grad(monkeypatch):
     monkeypatch.setattr(model_api, "preprocess_observation", lambda key, obs, train: obs)
     base = _TinyFrozenBase(); head = PhysicalResidualHead(4,width=8,horizon=2,ffn_dim=16,rngs=nnx.Rngs(3))

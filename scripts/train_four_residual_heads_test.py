@@ -1,7 +1,12 @@
 import numpy as np
+import jax
 import jax.numpy as jnp
 import optax
+from flax import nnx
+from types import SimpleNamespace
 from scripts import train_four_residual_heads as target
+from openpi.models import model as model_api
+from openpi.training import physical_residual_bank as bank, sharding
 from openpi.training.physical_residual import physical_residual_loss
 
 class E:
@@ -97,7 +102,6 @@ def test_fixed_general_and_tail_holdouts_are_task_balanced():
  assert valid_counts.count(1)==20 and valid_counts.count(3)==10 and valid_counts.count(5)==10
 
 def test_holdout_rng_is_fixed_per_suite():
- import jax
  a=target.fixed_eval_rng(42,"spatial");b=target.fixed_eval_rng(42,"spatial");c=target.fixed_eval_rng(42,"object")
  assert np.array_equal(np.asarray(jax.random.key_data(a)),np.asarray(jax.random.key_data(b)))
  assert not np.array_equal(np.asarray(jax.random.key_data(a)),np.asarray(jax.random.key_data(c)))
@@ -110,3 +114,56 @@ def test_invalid_gt_suffix_has_zero_loss_and_gradient():
  clean=jnp.zeros((1,10,32));dirty=clean.at[:,1:,:7].set(123)
  np.testing.assert_allclose(loss(clean),loss(dirty))
  np.testing.assert_array_equal(np.asarray(jax.grad(loss)(dirty)[:,1:,:7]),0)
+
+
+class PipelineD:
+ def __init__(self,offset=20):
+  self.episodes=tuple(E(task,length,index) for task in range(offset,offset+10)
+   for index,length in ((task*2,6),(task*2+1,10)))
+  self._ends=np.cumsum([e.length for e in self.episodes])
+ def __len__(self):return int(self._ends[-1])
+ def __getitem__(self,index):
+  pos=int(np.searchsorted(self._ends,index,side="right"));episode=self.episodes[pos]
+  start=0 if pos==0 else int(self._ends[pos-1]);frame=index-start
+  action=np.minimum(frame+np.arange(10),episode.length-1).astype(np.float32)
+  return {"image":{"cam":np.zeros((2,2,3),np.float32)},"image_mask":{"cam":np.bool_(True)},
+    "state":np.ones(32,np.float32),"actions":np.broadcast_to(action[:,None],(10,32)).copy()}
+
+
+class PipelineBase(nnx.Module):
+ def __init__(self):self.scale=nnx.Param(jnp.asarray(1.0))
+ def flow_features(self,observation,x_t,time):
+  del observation,time
+  hidden=jnp.ones((*x_t.shape[:2],4))*self.scale
+  return jnp.zeros_like(x_t)+self.scale,hidden
+
+
+def test_fake_dataloader_batch_step_eval_and_checkpoint_roundtrip(tmp_path,monkeypatch):
+ monkeypatch.setattr(model_api,"preprocess_observation",lambda key,obs,train:obs)
+ ds=PipelineD();datasets={suite:ds for suite in bank.SUITES};steps={suite:0 for suite in bank.SUITES}
+ args=SimpleNamespace(seed=42,num_workers=0,chunk_sampling="all_observations",padding_supervision="official_repeat_last")
+ train=target.make_loaders(args,datasets,lambda x:x,steps,True)
+ general=target.make_loaders(args,datasets,lambda x:x,steps,False,"general")
+ tail=target.make_loaders(args,datasets,lambda x:x,steps,False,"tail")
+ obs,actions,tasks,mask,episode_mask=target.batch_parts(next(iter(train["goal"])))
+ assert actions.shape==(40,10,32) and set(np.asarray(tasks))==set(range(10))
+ np.testing.assert_array_equal(mask,1);assert np.any(episode_mask==0)
+ prefix_args=SimpleNamespace(**{**vars(args),"padding_supervision":"valid_prefix"})
+ prefix_tail=target.make_loaders(prefix_args,datasets,lambda x:x,steps,False,"tail")
+ _,_,_,prefix_mask,prefix_episode=target.batch_parts(next(iter(prefix_tail["goal"])))
+ np.testing.assert_array_equal(prefix_mask,prefix_episode);assert {1,5}.issubset(set(prefix_mask.sum(1).astype(int)))
+ base_graph,base_state=nnx.split(PipelineBase());head_graph,heads=bank.initialize_head_bank(4,7,width=8,horizon=10,ffn_dim=16)
+ tx=optax.adam(1e-3);opts=bank.initialize_optimizer_states(tx,heads);mesh=sharding.make_mesh(1)
+ step_fn=bank.make_sharded_head_step(base_graph,head_graph,tx,mesh);eval_fn=bank.make_sharded_head_eval(base_graph,head_graph,mesh)
+ obs,actions,tasks,mask=target.legacy.put_batch_on_mesh((obs,actions,tasks,mask),mesh)
+ heads["spatial"],opts["spatial"],metrics=step_fn(base_state,heads["spatial"],opts["spatial"],obs,actions,tasks,mask,jax.random.key(1),0)
+ assert all(jnp.isfinite(value) for value in metrics.values());steps["spatial"]=1
+ for loader in (general,tail):
+  eo,ea,et,em,_=target.batch_parts(next(iter(loader["goal"])))
+  eo,ea,et,em=target.legacy.put_batch_on_mesh((eo,ea,et,em),mesh)
+  value,_=eval_fn(base_state,heads["goal"],eo,ea,et,em,jax.random.key(2),0);assert jnp.isfinite(value)
+ config={"feature_dim":4};path=bank.save_head_bank(tmp_path/"step4",heads,opts,steps,
+  base_checkpoint_path="/base",norm_stats_sha256="n",base_manifest_sha256="m",head_config=config)
+ _,_,restored,_=bank.load_head_bank(path,heads,opts,expected_base_checkpoint_path="/base",
+  expected_norm_stats_sha256="n",expected_base_manifest_sha256="m",expected_head_config=config)
+ assert restored==steps
