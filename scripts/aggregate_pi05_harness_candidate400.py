@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Strict score and causal-attribution aggregation for paired LIBERO-400."""
 from __future__ import annotations
-import argparse, json
+import argparse, hashlib, json
 from collections import Counter
 from pathlib import Path
 
@@ -15,6 +15,38 @@ GOAL={"kind":"response_probe_v1","enabled":True,"lift_z_command":.2,
       "max_lift_steps":20,"lift_target_m":.025,"native_reserve_steps":80,
       "minimum_actual":100}
 LONG={"kind":"closed_dwell_lift_v1","enabled":True,"veto_native_upward_intent":True}
+HEX=set("0123456789abcdef")
+
+def sha256(path:Path)->str:
+    h=hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda:stream.read(1024*1024),b""):h.update(chunk)
+    return h.hexdigest()
+
+def valid_hash(value):return isinstance(value,str) and len(value)==64 and set(value)<=HEX
+
+def valid_identity(value):
+    return (isinstance(value,dict) and value.get("policy_id")=="base"
+        and value.get("base_graph")=="original_pi05_libero"
+        and value.get("adapter_sha256") is None and valid_hash(value.get("checkpoint_sha256")))
+
+def load_receipt(path:Path,root:Path):
+    value=json.loads(path.read_text())
+    if (value.get("schema")!="pi05_harness_artifact_inventory.v1"
+            or value.get("worker_output_name")!=root.name
+            or value.get("controller_sha256")!=sha256(root/"controller.json")):
+        raise ValueError("artifact receipt worker/controller binding invalid")
+    artifacts={}
+    for row in value.get("artifacts",[]):
+        episode=row.get("episode_path");video=row.get("video_path")
+        if (not isinstance(episode,str) or episode in artifacts or not isinstance(video,str)
+                or Path(episode).is_absolute() or Path(video).is_absolute()
+                or ".." in Path(episode).parts or ".." in Path(video).parts
+                or not valid_hash(row.get("episode_sha256")) or not valid_hash(row.get("video_sha256"))
+                or type(row.get("video_size")) is not int or row["video_size"]<=0):
+            raise ValueError("artifact receipt row invalid")
+        artifacts[episode]=row
+    return artifacts
 
 def load_plan(path:Path,catalog_path:Path):
     plan=json.loads(path.read_text()); catalog=json.loads(catalog_path.read_text())
@@ -44,12 +76,16 @@ def provenance(value):
 def case_key(case,expected):
     key=(case.get("suite"),case.get("task_id"),case.get("init_id")); spec=expected.get(key)
     ambient=7+spec["joint"]*50+key[2] if spec else None
-    if (spec is None or case.get("replicate_id")!=0 or case.get("joint_task_number")!=spec["joint"]
-            or case.get("ambient_seed")!=ambient or case.get("policy_seed")!=ambient):
+    integer_fields=(case.get("task_id"),case.get("init_id"),case.get("replicate_id"),
+                    case.get("joint_task_number"),case.get("ambient_seed"),case.get("policy_seed"))
+    if (any(type(value) is not int for value in integer_fields) or spec is None
+            or case.get("replicate_id")!=0 or case.get("joint_task_number")!=spec["joint"]
+            or case.get("ambient_seed")!=ambient or case.get("policy_seed")!=ambient
+            or case.get("policy_id")!="base"):
         raise ValueError("case identity/seed differs from frozen plan")
     return key
 
-def audit_common(value,which,spec,identity,batch:Path):
+def audit_common(value,which,spec,identity,batch:Path,worker:Path,artifact=None):
     errors=[]; report=value.get("runner",{}).get("report",{}); trace=report.get("trace",[])
     stages=value.get("harness",{}).get("stages",[]); env=report.get("environment",{})
     cap_valid=(type(report.get("steps")) is int and report["steps"]==len(trace)
@@ -66,9 +102,23 @@ def audit_common(value,which,spec,identity,batch:Path):
             and isinstance(asset.get("sha256"),str) and len(asset["sha256"])==64)
     if not source_valid:
         errors.append("environment source invalid")
-    video=value.get("video",{}); video_status={"written":video.get("written"),"path":video.get("path")}
-    video_valid=(video.get("written") is True and isinstance(video.get("path"),str)
-        and Path(video["path"]).name==video["path"] and (batch/"videos"/video["path"]).is_file())
+    video=value.get("video",{}); name=video.get("path");video_path=batch/"videos"/name if isinstance(name,str) else batch/"videos"/"invalid"
+    expected_relative=video_path.relative_to(worker).as_posix()
+    local_present=video_path.is_file()
+    if local_present:
+        size=video_path.stat().st_size;digest=sha256(video_path)
+        receipt_matches=(artifact is None or (artifact.get("video_path")==expected_relative
+            and artifact.get("video_size")==size and artifact.get("video_sha256")==digest))
+        video_valid=size>0 and receipt_matches
+    else:
+        size=artifact.get("video_size") if isinstance(artifact,dict) else None
+        digest=artifact.get("video_sha256") if isinstance(artifact,dict) else None
+        video_valid=(isinstance(artifact,dict) and artifact.get("video_path")==expected_relative
+                     and type(size) is int and size>0 and valid_hash(digest))
+    video_valid=(video.get("written") is True and isinstance(name,str)
+                 and Path(name).name==name and video_valid)
+    video_status={"written":video.get("written"),"path":name,"origin_checked":video_valid,
+                  "retained_size":size,"retained_sha256":digest}
     if not video_valid: errors.append("video receipt/file invalid")
     calls=value.get("runner",{}).get("policy_calls",[]); receipts=value.get("runner",{}).get("payload_hashes",[])
     if not calls or len(calls)!=len(receipts): errors.append("policy call/hash coverage invalid")
@@ -107,8 +157,16 @@ def summarize(rows):
     return {"pairs":len(rows),"control_successes":sum(r["control_success"] for r in rows),
             "candidate_successes":sum(r["candidate_success"] for r in rows),"paired_outcomes":dict(outcomes)}
 
-def aggregate(roots,case_plan,catalog):
-    expected=load_plan(case_plan,catalog); episodes={}; structural=[]; summaries=0
+def aggregate(roots,case_plan,catalog,artifact_receipts=None):
+    expected=load_plan(case_plan,catalog); episodes={}; structural=[]; summaries=0;manifest_identities=[]
+    receipt_maps={};receipt_used={}
+    for path in artifact_receipts or []:
+        value=json.loads(path.read_text());name=value.get("worker_output_name")
+        root=next((r for r in roots if r.name==name),None)
+        if root is None or name in receipt_maps:raise ValueError("artifact receipt has unknown/duplicate worker")
+        receipt_maps[name]=load_receipt(path,root);receipt_used[name]=set()
+    if artifact_receipts is not None and len(receipt_maps)!=len(roots):
+        structural.append("artifact receipt coverage is not one per worker")
     if len(roots)!=4: structural.append("expected exactly four workers")
     for root in roots:
         controller=json.loads((root/"controller.json").read_text()); batches=controller.get("batches",[])
@@ -116,9 +174,10 @@ def aggregate(roots,case_plan,catalog):
                 or len({x.get("server_pid") for x in batches})!=1 or batches[1].get("service_reused_from_previous_batch") is not True): structural.append(f"{root}: controller/service invalid")
         for sp in sorted(root.glob("*/summary.json")):
             summaries+=1;which=arm(sp.parent.name);summary=json.loads(sp.read_text());manifest=json.loads((sp.parent/"manifest.json").read_text());identity=manifest.get("verified_service_identity")
+            manifest_identities.append(identity)
             if (summary.get("mode")!="harness" or summary.get("complete") is not True or summary.get("errors")!=0 or summary.get("planned")!=summary.get("completed")
-                    or manifest.get("fixed_policy_id")!="base" or not isinstance(identity,dict) or identity.get("policy_id")!="base"
-                    or identity.get("base_graph")!="original_pi05_libero" or identity.get("adapter_sha256") is not None): structural.append(f"{sp}: summary/identity invalid")
+                    or manifest.get("fixed_policy_id")!="base" or not valid_identity(identity)):
+                structural.append(f"{sp}: summary/identity invalid")
             for row in summary.get("cases",[]):
                 try:key=case_key(row,expected)
                 except ValueError as error:structural.append(f"{sp}: {error}");continue
@@ -128,12 +187,21 @@ def aggregate(roots,case_plan,catalog):
                 try:actual=case_key(value.get("case",{}),expected)
                 except ValueError as error:structural.append(f"{ep}: {error}");continue
                 if actual!=key or row.get("success") is not value["runner"]["report"].get("success") or row.get("steps")!=value["runner"]["report"].get("steps"):structural.append(f"{ep}: summary mismatch")
-                errs,video,flags=audit_common(value,which,expected[key],identity,sp.parent)
+                relative=ep.relative_to(root.resolve()).as_posix();artifact=receipt_maps.get(root.name,{}).get(relative)
+                if artifact is not None:
+                    receipt_used[root.name].add(relative)
+                    if artifact.get("episode_sha256")!=sha256(ep):structural.append(f"{ep}: artifact episode hash mismatch")
+                errs,video,flags=audit_common(value,which,expected[key],identity,sp.parent,root,artifact)
                 structural += [f"{ep}: {e}" for e in errs]
                 slot=(which,key)
                 if slot in episodes:raise ValueError(f"duplicate {slot}")
                 episodes[slot]={"value":value,"identity":identity,"video":video,"flags":flags}
     if summaries!=8:structural.append("expected eight summaries")
+    if (not manifest_identities or any(item!=manifest_identities[0] for item in manifest_identities)
+            or not valid_identity(manifest_identities[0])):
+        structural.append("verified service identities differ across batches/workers")
+    for name,artifacts in receipt_maps.items():
+        if receipt_used.get(name,set())!=set(artifacts):structural.append(f"{name}: artifact receipt exact coverage mismatch")
     wanted={(a,k) for a in ARMS for k in expected}
     if set(episodes)!=wanted:structural.append("coverage is not exact 400 pairs x 2")
     pairs=[]
@@ -143,6 +211,8 @@ def aggregate(roots,case_plan,catalog):
         ci,ai=initial_receipt(cv),initial_receipt(av);noise_ok=valid_initial(ci) and valid_initial(ai) and ci==ai
         identity_ok=c["identity"]==a["identity"]
         seed_ok=(cv["case"]["policy_seed"],cv["case"]["ambient_seed"])==(av["case"]["policy_seed"],av["case"]["ambient_seed"])
+        if not identity_ok:structural.append(f"{key}: paired service identity differs")
+        if not seed_ok:structural.append(f"{key}: paired seeds differ")
         audit_errors,causal_ok,confounds,triggered=pair_gate(cv,av,key,a["identity"]);structural += [f"{key}: {e}" for e in audit_errors]
         cs,vs=bool(cv["runner"]["report"]["success"]),bool(av["runner"]["report"]["success"])
         label="both" if cs and vs else "recovered" if vs else "regressed" if cs else "neither"
@@ -166,6 +236,6 @@ def aggregate(roots,case_plan,catalog):
         "causal_flags":{"passing":sum(x["causal_gate_pass"] for x in pairs),"failing":sum(not x["causal_gate_pass"] for x in pairs)},"pairs":pairs}
 
 if __name__=="__main__":
-    p=argparse.ArgumentParser();p.add_argument("--worker-output",action="append",type=Path,required=True);p.add_argument("--case-plan",type=Path,required=True);p.add_argument("--task-catalog",type=Path,required=True);p.add_argument("--output",type=Path,required=True);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument("--worker-output",action="append",type=Path,required=True);p.add_argument("--artifact-receipt",action="append",type=Path);p.add_argument("--case-plan",type=Path,required=True);p.add_argument("--task-catalog",type=Path,required=True);p.add_argument("--output",type=Path,required=True);a=p.parse_args()
     if a.output.exists():raise FileExistsError("output is create-only")
-    result=aggregate(a.worker_output,a.case_plan,a.task_catalog);a.output.parent.mkdir(parents=True,exist_ok=True);a.output.write_text(json.dumps(result,indent=2,sort_keys=True)+"\n");raise SystemExit(0 if result["score_complete"] else 1)
+    result=aggregate(a.worker_output,a.case_plan,a.task_catalog,a.artifact_receipt);a.output.parent.mkdir(parents=True,exist_ok=True);a.output.write_text(json.dumps(result,indent=2,sort_keys=True)+"\n");raise SystemExit(0 if result["score_complete"] else 1)

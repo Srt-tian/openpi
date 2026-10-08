@@ -20,7 +20,9 @@ class Candidate400PlanTest(unittest.TestCase):
                 if key=="libero_10/8": self.assertEqual(json.loads(actual)["pi05_control"],target.LONG_CONTROL)
             self.assertEqual(changed,["libero_10/8","libero_goal/3"])
             self.assertEqual(reg["metadata"]["oracle_inputs"],[])
-            self.assertIn("pending",reg["metadata"]["status"])
+            self.assertEqual(reg["metadata"]["status"],
+                "development_candidate_after55pair_veto_pass_with_200pair_drawer_exact98of100_warning")
+            self.assertIs(reg["metadata"]["formal_promotion_claim"],False)
             seen=set();episodes=0
             for worker in range(4):
                 cases=json.loads((out/f"cases_worker{worker}.json").read_text())["cases"]

@@ -6,13 +6,26 @@
       "libero_goal/3",
       "libero_10/8"
     ],
+    "focused_evidence": {
+      "closed_lift_veto_55": {
+        "candidate": "28/55",
+        "control": "27/55",
+        "prior_regression_case": "both_failed_under_veto",
+        "regressions": 0
+      },
+      "drawer_200": {
+        "exact_prefix_pairs": "98/100",
+        "untriggered_confounds": 2
+      }
+    },
+    "formal_promotion_claim": false,
     "oracle_inputs": [],
     "routing_inputs": [
       "suite",
       "task_index"
     ],
     "score_scope": "paired_native_vs_candidate_full_libero400",
-    "status": "provisional_pending_closed_lift_intent_veto_110",
+    "status": "development_candidate_after55pair_veto_pass_with_200pair_drawer_exact98of100_warning",
     "task_config_sha256": {
       "libero_10/0": "b6f07d00cf1814a172427357c60e2c86210b1b94bed08cc43c5d96067617cf70",
       "libero_10/1": "93bdcbf97445c5e94e3465ba0e8feaa3bafcdbbcf94ae9c051f9a9d097f5abba",
