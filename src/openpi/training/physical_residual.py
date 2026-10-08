@@ -6,9 +6,13 @@ from collections.abc import Mapping, Sequence
 import math
 
 from flax import nnx
+import einops
 import jax
 import jax.numpy as jnp
 import numpy as np
+
+from openpi.models import model as _model
+from openpi.models import pi0
 
 PHYSICAL_DIM = 7
 PADDED_ACTION_DIM = 32
@@ -64,14 +68,17 @@ def paired_flow_inputs(actions, noise, flow_time):
     if actions.ndim != 3 or actions.shape[-1] != PADDED_ACTION_DIM or noise.shape != actions.shape:
         raise ValueError("actions/noise must share shape [B,T,32]")
     if time.shape == (actions.shape[0],):
+        canonical_time = time
         time = time[:, None, None]
     elif time.shape == actions.shape[:2]:
+        canonical_time = time
         time = time[..., None]
     else:
         raise ValueError("flow_time must have shape [B] or [B,T]")
     actions, noise, time = (jax.lax.stop_gradient(value) for value in (actions, noise, time))
     return {"noisy_actions": time * noise + (1.0 - time) * actions,
-            "target_velocity": noise - actions, "flow_time": time[..., 0]}
+            "target_velocity": noise - actions,
+            "flow_time": jax.lax.stop_gradient(canonical_time)}
 
 
 def _task_macro(values, task_ids, valid_examples, num_tasks: int):
@@ -124,6 +131,106 @@ def physical_residual_loss(
     return total, {"loss": total, "physical_fm": fm, "paired_relative_regret": regret,
                    "correction_norm": correction_norm, "surrogate_gate_bce": gate_bce,
                    "base_physical_error": _task_macro(e0, task_ids, valid_examples, num_tasks)}
+
+
+def residual_training_loss(
+    frozen_base_model, head: PhysicalResidualHead, rng, observation, actions, task_ids, *,
+    num_tasks: int, valid_horizon=None, train: bool = True, relative_margin: float = 0.05,
+    correction_weight: float = 1e-3, gate_weight: float = 0.1,
+):
+    """Preprocess once and evaluate one shared flow point for head-only training.
+
+    The caller passes an explicit frozen base model. Base velocity/hidden and the
+    flow target are stopped before the residual objective; this function does not
+    update or return base parameters.
+    """
+    preprocess_rng, noise_rng, time_rng = jax.random.split(rng, 3)
+    observation = _model.preprocess_observation(preprocess_rng, observation, train=train)
+    actions = jnp.asarray(actions)
+    noise = jax.random.normal(noise_rng, actions.shape)
+    time = jax.random.beta(time_rng, 1.5, 1, actions.shape[:-2]) * 0.999 + 0.001
+    flow = paired_flow_inputs(actions, noise, time)
+    base_velocity, base_hidden = frozen_base_model.flow_features(
+        observation, flow["noisy_actions"], flow["flow_time"]
+    )
+    base_velocity = jax.lax.stop_gradient(base_velocity)
+    base_hidden = jax.lax.stop_gradient(base_hidden)
+    outputs = head(base_hidden, observation.state, base_velocity, flow["flow_time"])
+    loss, metrics = physical_residual_loss(
+        base_velocity=base_velocity, residual7=outputs["residual7"],
+        gate=outputs["surrogate_gain_gate"], target_velocity=flow["target_velocity"],
+        task_ids=task_ids, num_tasks=num_tasks, valid_horizon=valid_horizon,
+        relative_margin=relative_margin, correction_weight=correction_weight,
+        gate_weight=gate_weight,
+    )
+    return loss, {**metrics, "mean_surrogate_gate": jnp.mean(outputs["surrogate_gain_gate"])}
+
+
+def residual_head_value_and_grad(frozen_base_model, head: PhysicalResidualHead, *args, **kwargs):
+    """Differentiate only ``head``; the explicit frozen base is a closed-over input."""
+    def loss_fn(active_head):
+        return residual_training_loss(frozen_base_model, active_head, *args, **kwargs)
+
+    return nnx.value_and_grad(loss_fn, has_aux=True)(head)
+
+
+def sample_actions_with_physical_residual(
+    frozen_base_model, head: PhysicalResidualHead | None, rng, observation, *, num_steps: int = 10,
+    noise=None, gate_override: float | None = None,
+):
+    """Opt-in PI0.5 cached-prefix solver; the model's native method is untouched."""
+    if head is None:
+        return frozen_base_model.sample_actions(
+            rng, observation, num_steps=num_steps, noise=noise
+        )
+    observation = _model.preprocess_observation(None, observation, train=False)
+    batch_size = observation.state.shape[0]
+    if noise is None:
+        noise = jax.random.normal(
+            rng, (batch_size, frozen_base_model.action_horizon, frozen_base_model.action_dim)
+        )
+    dt = -1.0 / num_steps
+    prefix_tokens, prefix_mask, prefix_ar_mask = frozen_base_model.embed_prefix(observation)
+    prefix_attn_mask = pi0.make_attn_mask(prefix_mask, prefix_ar_mask)
+    positions = jnp.cumsum(prefix_mask, axis=1) - 1
+    _, kv_cache = frozen_base_model.PaliGemma.llm(
+        [prefix_tokens, None], mask=prefix_attn_mask, positions=positions
+    )
+
+    def step(carry):
+        x_t, time = carry
+        time_batch = jnp.broadcast_to(time, batch_size)
+        suffix_tokens, suffix_mask, suffix_ar_mask, adarms_cond = frozen_base_model.embed_suffix(
+            observation, x_t, time_batch
+        )
+        suffix_attn_mask = pi0.make_attn_mask(suffix_mask, suffix_ar_mask)
+        prefix_for_suffix = einops.repeat(prefix_mask, "b p -> b s p", s=suffix_tokens.shape[1])
+        full_attn_mask = jnp.concatenate([prefix_for_suffix, suffix_attn_mask], axis=-1)
+        suffix_positions = (
+            jnp.sum(prefix_mask, axis=-1)[:, None] + jnp.cumsum(suffix_mask, axis=-1) - 1
+        )
+        (_, suffix_out), _ = frozen_base_model.PaliGemma.llm(
+            [None, suffix_tokens], mask=full_attn_mask, positions=suffix_positions,
+            kv_cache=kv_cache, adarms_cond=[None, adarms_cond],
+        )
+        hidden = suffix_out[:, -frozen_base_model.action_horizon :]
+        base_velocity = frozen_base_model.action_out_proj(hidden)
+        outputs = head(
+            jax.lax.stop_gradient(hidden), observation.state,
+            jax.lax.stop_gradient(base_velocity), time_batch,
+        )
+        if gate_override == 0:
+            velocity = base_velocity
+        elif gate_override is not None:
+            velocity = base_velocity + jnp.asarray(gate_override) * outputs["residual32"]
+        else:
+            velocity = outputs["corrected_velocity"]
+        return x_t + dt * velocity, time + dt
+
+    def cond(carry):
+        return carry[1] >= -dt / 2
+
+    return jax.lax.while_loop(cond, step, (jnp.asarray(noise), 1.0))[0]
 
 
 def balanced_task_batch(

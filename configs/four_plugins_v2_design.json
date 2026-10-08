@@ -45,8 +45,9 @@
   },
   "integration": {
     "model_helper": "implemented_and_small_fixture_tested",
-    "train_step": "pending",
+    "train_step": "head-only reusable loss/gradient wrapper implemented; optimizer and runner integration pending",
     "checkpoint_format": "pending",
+    "inference_hook": "opt-in cached-prefix solver implemented; serving integration pending",
     "full_model_bitwise_parity": "not_measured_without_full_weights; exact legacy-formula parity covered by small CPU fixture",
     "rollout_success": "not_measured"
   }
