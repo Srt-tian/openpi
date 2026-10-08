@@ -151,15 +151,21 @@ class CliValidationTest(unittest.TestCase):
                     cli.load_task_control_snapshot(registry)
 
     def test_closed_dwell_lift_control_is_exact_and_enabled_only(self):
-        valid = {"pi05_control": {
-            "kind": "closed_dwell_lift_v1", "enabled": True}}
-        with tempfile.TemporaryDirectory() as directory:
-            registry = self.write_control_registry(directory, valid)
-            control = cli.load_task_control_snapshot(registry)["controls"]["libero_goal/3"]
-            self.assertEqual(control, valid["pi05_control"])
+        valid_controls = [
+            {"kind": "closed_dwell_lift_v1", "enabled": True},
+            {"kind": "closed_dwell_lift_v1", "enabled": True,
+             "veto_native_upward_intent": True},
+        ]
+        for control in valid_controls:
+            with self.subTest(control=control), tempfile.TemporaryDirectory() as directory:
+                registry = self.write_control_registry(directory, {"pi05_control": control})
+                self.assertEqual(cli.load_task_control_snapshot(registry)["controls"]
+                                 ["libero_goal/3"], control)
         invalid = [
             {"kind": "closed_dwell_lift_v1", "enabled": False},
             {"kind": "closed_dwell_lift_v1", "enabled": 1},
+            {"kind": "closed_dwell_lift_v1", "enabled": True,
+             "veto_native_upward_intent": 1},
             {"kind": "closed_dwell_lift_v1", "enabled": True, "threshold": .1},
         ]
         for control in invalid:

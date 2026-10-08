@@ -74,6 +74,9 @@ def audit_episode(value, which, identity):
             or p.get("native_reserve") != 80 or p.get("mechanical_proxy_only") is not True
             or p.get("grasp_or_task_success_certificate") is not False or p.get("oracle_inputs") != []):
         errors.append("assist provenance contract invalid")
+    veto_enabled = p.get("veto_native_upward_intent", False)
+    if type(veto_enabled) is not bool:
+        errors.append("intent-veto parameter is not bool")
     if len(executed) != len(trace):
         errors.append("executed rows do not cover trace")
     executed_by_index = {r.get("emission_index"): r for r in executed}
@@ -106,22 +109,42 @@ def audit_episode(value, which, identity):
                    for r in modified)
             or sum(r.get("modified") is True for r in emitted) != p.get("emitted_modification_count")):
         errors.append("assist modification/slot accounting invalid")
-    if modified:
-        cue = p.get("cue", {}); context = cue.get("context", {}) if isinstance(cue, dict) else {}
+    attempted = p.get("attempted") is True
+    cue = p.get("cue", {}); context = cue.get("context", {}) if isinstance(cue, dict) else {}
+    if attempted:
         cue_actual = context.get("actual_executed", -1)
-        if (first != modified[0].get("expected_actual_step") or first < cue_actual
-                or cue_actual + 10 + 80 > CAP or p.get("attempted") is not True
-                or cue.get("window") != 60 or cue.get("closed_command_rows", -1) < 57
+        if (cue.get("window") != 60 or cue.get("closed_command_rows", -1) < 57
                 or not all(value <= .012 for value in cue.get("xyz_ptp_m", [1, 1, 1]))
                 or not .012 <= cue.get("aperture_m", -1) <= .070
-                or cue_actual < 120
-                or cue_actual + context.get("remaining_episode", -1) != CAP
+                or cue_actual < 120 or cue_actual + context.get("remaining_episode", -1) != CAP
                 or context.get("stage_executed") + context.get("remaining_stage", -1) != CAP
                 or context.get("stage_index") != 0
                 or min(context.get("remaining_episode", -1), context.get("remaining_stage", -1)) < 90):
-            errors.append("assist cue/first-change/reserve invalid")
+            errors.append("assist cue/reserve invalid")
+    if modified:
+        cue_actual = context.get("actual_executed", -1)
+        if (first != modified[0].get("expected_actual_step") or first < cue_actual
+                or cue_actual + 10 + 80 > CAP or not attempted):
+            errors.append("assist first-change/reserve invalid")
     elif first is not None:
         errors.append("first change recorded without modified action")
+    reason, incoming = p.get("veto_reason"), p.get("native_incoming_z")
+    cue_row = next((r for r in executed
+                    if r.get("expected_actual_step") == context.get("actual_executed")), None)
+    if veto_enabled and attempted and (not isinstance(cue_row, dict)
+            or cue_row.get("raw_action", [None] * 7)[2] != incoming):
+        errors.append("cue-time native z does not match executed-row provenance")
+    if reason is not None:
+        if (not veto_enabled or reason != "incoming_native_upward_intent"
+                or type(incoming) not in (int, float) or incoming <= 0
+                or not attempted or modified or slots != 0 or first is not None
+                or any(r.get("kind") != "native" for r in executed)):
+            errors.append("intent veto provenance/action contract invalid")
+    elif veto_enabled and attempted:
+        if type(incoming) not in (int, float) or incoming > 0:
+            errors.append("enabled intent veto failed to record/apply cue-time native z")
+    elif not attempted and (reason is not None or incoming is not None):
+        errors.append("intent veto evidence exists without cue")
     if (len(chunks) != len(calls)
             or any(type(r.get("cache_chunk_inference_index")) is not int
                    or not 0 <= r["cache_chunk_inference_index"] < len(chunks)
@@ -161,7 +184,7 @@ def causal(control, candidate):
 
 def aggregate(roots):
     episodes, errors, summaries = {}, [], 0
-    if len(roots) != 5: errors.append("expected five workers")
+    if len(roots) not in (4, 5): errors.append("expected four candidate or five legacy workers")
     for root in roots:
         controller = json.loads((root / "controller.json").read_text()); batches = controller.get("batches", [])
         if (controller.get("status") != "complete" or len(batches) != 2
@@ -188,11 +211,15 @@ def aggregate(roots):
                 if slot in episodes: raise ValueError(f"duplicate {slot}")
                 errors += [f"{ep}: {e}" for e in audit_episode(value, which, identity)]
                 episodes[slot] = {"value": value, "row": row, "identity": identity}
-    if summaries != 10: errors.append("expected ten summaries")
+    if summaries != 2 * len(roots): errors.append("expected two summaries per worker")
     expected = {(a, k) for a in ARMS for k in EXPECTED}
     if set(episodes) != expected: errors.append("coverage is not exact 55 x 2")
     identities = [v["identity"] for v in episodes.values()]
     if identities and any(v != identities[0] for v in identities): errors.append("service identities differ")
+    veto_parameters = {provenance(v["value"]).get("veto_native_upward_intent", False)
+                       for (which, _), v in episodes.items() if which == "assist"}
+    if len(veto_parameters) != 1 or any(type(v) is not bool for v in veto_parameters):
+        errors.append("intent-veto parameter differs across assist records")
     stats, pairs = {a: Counter() for a in ARMS}, []
     for key in sorted(EXPECTED):
         if any((a, key) not in episodes for a in ARMS): continue
@@ -209,6 +236,7 @@ def aggregate(roots):
         label = "both" if outcomes["control"] and outcomes["assist"] else "recovered" if outcomes["assist"] else "regressed" if outcomes["control"] else "neither"
         stats["assist"][label] += 1; pairs.append({"init_id": key[0], "replicate_id": key[1], "success": outcomes})
     return {"schema":"pi05_closed_dwell_lift.aggregate.v1","complete":not errors,
+            "veto_native_upward_intent": (next(iter(veto_parameters)) if len(veto_parameters) == 1 else None),
             "coverage":{"expected_episodes":110,"observed_episodes":len(episodes),"errors":errors},
             "arm_scores":{n:{"hard_init2":[stats[n]["hard2"],10],"other_four_repeated":[stats[n]["repeated40"],40],
               "other_five_inits":[stats[n]["other5"],5],"original_ten_init_rep0":[stats[n]["original10"],10],

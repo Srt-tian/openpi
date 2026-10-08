@@ -271,9 +271,12 @@ def load_task_control_snapshot(registry_path: Path | str) -> dict[str, Any]:
                 and type(raw.get("lease_steps")) is int
                 and raw["lease_steps"] in instruction_lease.LEASE_STEPS)
             lift_valid = (isinstance(raw, dict)
-                and set(raw) == {"kind", "enabled"}
+                and {"kind", "enabled"} <= set(raw)
+                and set(raw) <= {"kind", "enabled", "veto_native_upward_intent"}
                 and raw.get("kind") == closed_dwell_lift.KIND
-                and raw.get("enabled") is True)
+                and raw.get("enabled") is True
+                and ("veto_native_upward_intent" not in raw
+                     or type(raw["veto_native_upward_intent"]) is bool))
             if not response_valid and not lease_valid and not lift_valid:
                 raise ValueError("invalid task-level pi05_control schema")
             control = dict(raw)
@@ -583,7 +586,9 @@ def _run_new_loop(
             base_environment_factory, skill
         )
     elif control.get("enabled") and control.get("kind") == closed_dwell_lift.KIND:
-        skill = closed_dwell_lift.Pi05ClosedDwellLiftSkill(delegate)
+        skill = closed_dwell_lift.Pi05ClosedDwellLiftSkill(
+            delegate, veto_native_upward_intent=control.get("veto_native_upward_intent", False)
+        )
         environment_factory = response_probe.response_probe_environment_factory(
             base_environment_factory, skill
         )
