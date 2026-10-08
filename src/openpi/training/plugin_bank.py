@@ -457,6 +457,118 @@ def _check_binding(actual: str, expected: str | None, label: str) -> None:
         raise ValueError(f"{label} mismatch: checkpoint={actual!r}, expected={expected!r}")
 
 
+def _sha256_path(path: pathlib.Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(8 * 1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def verify_adapter_bank(
+    path: str | pathlib.Path,
+    *,
+    expected_base_checkpoint_path: str | None = None,
+    expected_norm_stats_hash: str | None = None,
+    expected_base_manifest_hash: str | None = None,
+) -> dict[str, Any]:
+    """Validate an adapter bank for inference without reading optimizer payloads.
+
+    Every adapter is streamed through SHA-256 so a process serving one suite does
+    not silently accept corruption elsewhere in the declared policy bundle.  The
+    optimizer files are intentionally neither opened nor required by this path.
+    """
+    root = pathlib.Path(path).expanduser().resolve()
+    manifest = json.loads((root / "manifest.json").read_text())
+    if manifest.get("schema_version") != 1 or manifest.get("format") != "flax-msgpack-no-pickle":
+        raise ValueError("unsupported plugin-bank checkpoint format")
+    if manifest.get("config") != dataclasses.asdict(pi05_lora_config()):
+        raise ValueError("plugin-bank model configuration mismatch")
+    if tuple(manifest.get("suite_order", ())) != DEFAULT_SUITES:
+        raise ValueError("plugin-bank suite order mismatch")
+
+    base = manifest["base"]
+    expected_path = None if expected_base_checkpoint_path is None else _base_path_string(expected_base_checkpoint_path)
+    _check_binding(base["checkpoint_path"], expected_path, "base checkpoint path")
+    _check_binding(base["norm_stats_sha256"], expected_norm_stats_hash, "norm stats hash")
+    _check_binding(base["source_manifest_sha256"], expected_base_manifest_hash, "base manifest hash")
+    if base.get("inference_dtype") != "bfloat16":
+        raise ValueError("plugin bank is not bound to a bfloat16 base")
+
+    steps: dict[str, int] = {}
+    for index, suite in enumerate(DEFAULT_SUITES):
+        entry = manifest["banks"][suite]
+        expected_file = f"bank_{index:02d}.adapter.msgpack"
+        if entry.get("adapter_file") != expected_file:
+            raise ValueError(f"unsafe or unexpected adapter payload name for {suite}")
+        try:
+            step = int(entry["step"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError(f"invalid suite update count for {suite}") from error
+        if step < 0:
+            raise ValueError(f"negative suite update count for {suite}")
+        steps[suite] = step
+        if _sha256_path(root / expected_file) != entry.get("adapter_sha256"):
+            raise ValueError(f"adapter checksum mismatch for {suite}")
+    if manifest.get("global_update_count") != sum(steps.values()):
+        raise ValueError("global update count does not equal the suite update counts")
+    return manifest
+
+
+def load_adapter(
+    path: str | pathlib.Path,
+    suite: str,
+    adapter_template: nnx.State,
+    *,
+    expected_base_checkpoint_path: str | None = None,
+    expected_norm_stats_hash: str | None = None,
+    expected_base_manifest_hash: str | None = None,
+) -> tuple[nnx.State, dict[str, Any]]:
+    """Restore one suite adapter after validating the complete adapter bundle."""
+    if suite not in DEFAULT_SUITES:
+        raise ValueError(f"unknown plugin suite {suite!r}; expected one of {DEFAULT_SUITES}")
+    root = pathlib.Path(path).expanduser().resolve()
+    manifest = verify_adapter_bank(
+        root,
+        expected_base_checkpoint_path=expected_base_checkpoint_path,
+        expected_norm_stats_hash=expected_norm_stats_hash,
+        expected_base_manifest_hash=expected_base_manifest_hash,
+    )
+    data = (root / manifest["banks"][suite]["adapter_file"]).read_bytes()
+    pure = serialization.from_bytes(adapter_template.to_pure_dict(), data)
+    restored = copy.deepcopy(adapter_template)
+    restored.replace_by_pure_dict(pure)
+    return restored, manifest
+
+
+def load_adapters(
+    path: str | pathlib.Path,
+    adapter_templates: Mapping[str, nnx.State],
+    *,
+    expected_base_checkpoint_path: str | None = None,
+    expected_norm_stats_hash: str | None = None,
+    expected_base_manifest_hash: str | None = None,
+) -> tuple[dict[str, nnx.State], dict[str, Any]]:
+    """Restore all four adapters for inference without optimizer state."""
+    if set(adapter_templates) != set(DEFAULT_SUITES):
+        raise ValueError("adapter templates must contain all four suites")
+    root = pathlib.Path(path).expanduser().resolve()
+    manifest = verify_adapter_bank(
+        root,
+        expected_base_checkpoint_path=expected_base_checkpoint_path,
+        expected_norm_stats_hash=expected_norm_stats_hash,
+        expected_base_manifest_hash=expected_base_manifest_hash,
+    )
+    adapters = {}
+    for suite in DEFAULT_SUITES:
+        data = (root / manifest["banks"][suite]["adapter_file"]).read_bytes()
+        pure = serialization.from_bytes(adapter_templates[suite].to_pure_dict(), data)
+        restored = copy.deepcopy(adapter_templates[suite])
+        restored.replace_by_pure_dict(pure)
+        adapters[suite] = restored
+    return adapters, manifest
+
+
 def load_bank(
     path: str | pathlib.Path,
     adapter_templates: Mapping[str, nnx.State],

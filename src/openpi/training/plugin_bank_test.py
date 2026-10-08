@@ -199,6 +199,66 @@ def test_stage_a_checkpoint_has_no_auxiliary_payload(tmp_path):
     assert "auxiliary_file" not in json.loads((path / "manifest.json").read_text())
 
 
+def test_inference_loads_one_adapter_without_reading_optimizer(tmp_path):
+    _, _, adapter = plugin_bank.partition_model(TinyModel(), _is_tiny_lora)
+    adapters = {suite: copy.deepcopy(adapter) for suite in plugin_bank.SUITES}
+    tx = optax.adam(1e-2)
+    path = plugin_bank.save_bank(
+        tmp_path / "bank",
+        adapters,
+        plugin_bank.initialize_optimizer_states(tx, adapters),
+        {suite: 4 for suite in plugin_bank.SUITES},
+        base_checkpoint_path="/checkpoint/params",
+        norm_stats_hash="norm-hash",
+        base_manifest_hash="source-manifest-hash",
+    )
+    # Inference must not need or open training-only optimizer payloads.
+    (path / "bank_00.optimizer.msgpack").write_bytes(b"corrupt optimizer")
+    restored, manifest = plugin_bank.load_adapter(
+        path,
+        "spatial",
+        adapter,
+        expected_base_checkpoint_path="/checkpoint/params",
+        expected_norm_stats_hash="norm-hash",
+        expected_base_manifest_hash="source-manifest-hash",
+    )
+    _assert_tree_equal(restored.to_pure_dict(), adapter.to_pure_dict())
+    assert manifest["global_update_count"] == 16
+
+
+def test_inference_adapter_bundle_fails_closed_on_any_adapter_or_binding(tmp_path):
+    _, _, adapter = plugin_bank.partition_model(TinyModel(), _is_tiny_lora)
+    adapters = {suite: copy.deepcopy(adapter) for suite in plugin_bank.SUITES}
+    tx = optax.adam(1e-2)
+    path = plugin_bank.save_bank(
+        tmp_path / "bank",
+        adapters,
+        plugin_bank.initialize_optimizer_states(tx, adapters),
+        {suite: 1 for suite in plugin_bank.SUITES},
+        base_checkpoint_path="/checkpoint/params",
+        norm_stats_hash="norm-hash",
+        base_manifest_hash="source-manifest-hash",
+    )
+    try:
+        plugin_bank.load_adapter(
+            path, "spatial", adapter, expected_norm_stats_hash="wrong-norm-hash"
+        )
+    except ValueError as error:
+        assert "norm stats hash mismatch" in str(error)
+    else:
+        raise AssertionError("mismatched inference binding was accepted")
+
+    # Corruption in an unselected suite invalidates the declared four-policy bundle.
+    with (path / "bank_03.adapter.msgpack").open("ab") as stream:
+        stream.write(b"corrupt adapter")
+    try:
+        plugin_bank.load_adapter(path, "spatial", adapter)
+    except ValueError as error:
+        assert "adapter checksum mismatch for long" in str(error)
+    else:
+        raise AssertionError("corrupt unselected adapter was accepted")
+
+
 def test_materialize_requires_every_base_leaf_and_zeros_all_b_factors():
     template = {
         "base": jax.ShapeDtypeStruct((2, 2), jnp.bfloat16),
