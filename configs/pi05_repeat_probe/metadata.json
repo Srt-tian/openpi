@@ -1,0 +1,18 @@
+{
+  "arms": [
+    "base",
+    "plugin"
+  ],
+  "base_episodes": 140,
+  "environment_seed": 7,
+  "episodes": 280,
+  "exact_2x14x10_coverage": true,
+  "inference_call_seed_stride": 1000003,
+  "plugin_episodes": 140,
+  "policy_seed_formula": "7 + joint40_task_number * 50 + init_id + replicate_id * 1000000007",
+  "replicates_per_case": 10,
+  "routing_scope": "task only; never init or replicate",
+  "schema": "pi05_repeat_probe.metadata.v1",
+  "union_cases": 14,
+  "unique_arm_case_replicates": 280
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "pi05_harness_worker.v1",
+  "batches": [
+    {
+      "name": "parity_object",
+      "mode": "parity",
+      "registry": "configs/pi05_harness/registry.json",
+      "routes": "configs/pi05_harness/routes_plugins.json",
+      "cases": "configs/pi05_parity/cases_object.json"
+    }
+  ]
+}

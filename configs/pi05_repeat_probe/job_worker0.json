@@ -1,0 +1,19 @@
+{
+  "batches": [
+    {
+      "cases": "configs/pi05_repeat_probe/cases_worker0_all.json",
+      "mode": "harness",
+      "name": "worker0_base",
+      "registry": "configs/pi05_harness/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    },
+    {
+      "cases": "configs/pi05_repeat_probe/cases_worker0_libero_10.json",
+      "mode": "harness",
+      "name": "worker0_plugin_libero_10",
+      "registry": "configs/pi05_harness/registry.json",
+      "routes": "configs/pi05_harness/routes_plugins.json"
+    }
+  ],
+  "schema": "pi05_harness_worker.v1"
+}

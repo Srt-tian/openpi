@@ -1,0 +1,79 @@
+{
+  "identities": {
+    "base": {
+      "adapter_sha256": null,
+      "base_graph": "original_pi05_libero",
+      "checkpoint_sha256": "a04f1a310cb0ed2517716f40d9e8881990b63beae0e3f679c4822aef8a9552e6"
+    },
+    "goal": {
+      "adapter_sha256": "300000605e7479bcbce4cce4a4970eb2b32459caabdaaa0cecfe4d6fd552969d",
+      "base_graph": "pi05_lora",
+      "checkpoint_sha256": "a04f1a310cb0ed2517716f40d9e8881990b63beae0e3f679c4822aef8a9552e6"
+    },
+    "long": {
+      "adapter_sha256": "8358a865da19de20b447d0c978b3f398735aca5d66b1be0f2536f4d66d55ee7c",
+      "base_graph": "pi05_lora",
+      "checkpoint_sha256": "a04f1a310cb0ed2517716f40d9e8881990b63beae0e3f679c4822aef8a9552e6"
+    },
+    "object": {
+      "adapter_sha256": "343dc63c3a1c01bc8b3069e2d3908a3deb2d5d2f871859db7341decfcc18ec46",
+      "base_graph": "pi05_lora",
+      "checkpoint_sha256": "a04f1a310cb0ed2517716f40d9e8881990b63beae0e3f679c4822aef8a9552e6"
+    },
+    "spatial": {
+      "adapter_sha256": "cad7bb62122cda4beac29b60e5c56eb95d72815124adf8ca704b4a8c5aad6a26",
+      "base_graph": "pi05_lora",
+      "checkpoint_sha256": "a04f1a310cb0ed2517716f40d9e8881990b63beae0e3f679c4822aef8a9552e6"
+    }
+  },
+  "name": "pi05-selected",
+  "routing_inputs": [
+    "suite",
+    "task_index"
+  ],
+  "schema": "pi05_harness_routes.v1",
+  "selection_basis": "phase1dev400",
+  "tasks": {
+    "libero_10/0": "base",
+    "libero_10/1": "base",
+    "libero_10/2": "base",
+    "libero_10/3": "base",
+    "libero_10/4": "base",
+    "libero_10/5": "base",
+    "libero_10/6": "base",
+    "libero_10/7": "base",
+    "libero_10/8": "long",
+    "libero_10/9": "long",
+    "libero_goal/0": "base",
+    "libero_goal/1": "base",
+    "libero_goal/2": "base",
+    "libero_goal/3": "base",
+    "libero_goal/4": "base",
+    "libero_goal/5": "base",
+    "libero_goal/6": "base",
+    "libero_goal/7": "base",
+    "libero_goal/8": "base",
+    "libero_goal/9": "base",
+    "libero_object/0": "base",
+    "libero_object/1": "base",
+    "libero_object/2": "base",
+    "libero_object/3": "base",
+    "libero_object/4": "object",
+    "libero_object/5": "base",
+    "libero_object/6": "base",
+    "libero_object/7": "base",
+    "libero_object/8": "base",
+    "libero_object/9": "base",
+    "libero_spatial/0": "base",
+    "libero_spatial/1": "base",
+    "libero_spatial/2": "base",
+    "libero_spatial/3": "spatial",
+    "libero_spatial/4": "base",
+    "libero_spatial/5": "base",
+    "libero_spatial/6": "base",
+    "libero_spatial/7": "spatial",
+    "libero_spatial/8": "base",
+    "libero_spatial/9": "base"
+  },
+  "validation_status": "unvalidated"
+}

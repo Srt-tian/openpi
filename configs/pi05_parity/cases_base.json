@@ -1,0 +1,25 @@
+{
+  "schema": "pi05_harness_cases.v1",
+  "cases": [
+    {
+      "suite": "libero_spatial",
+      "task_id": 3,
+      "init_id": 6
+    },
+    {
+      "suite": "libero_object",
+      "task_id": 4,
+      "init_id": 1
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 3,
+      "init_id": 4
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 8,
+      "init_id": 2
+    }
+  ]
+}

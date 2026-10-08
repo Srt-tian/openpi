@@ -1,0 +1,15 @@
+{
+  "schema": "pi05_harness_cases.v1",
+  "cases": [
+    {
+      "suite": "libero_goal",
+      "task_id": 3,
+      "init_id": 4
+    },
+    {
+      "suite": "libero_goal",
+      "task_id": 9,
+      "init_id": 5
+    }
+  ]
+}

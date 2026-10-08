@@ -1,0 +1,15 @@
+{
+  "schema": "pi05_harness_cases.v1",
+  "cases": [
+    {
+      "suite": "libero_10",
+      "task_id": 8,
+      "init_id": 2
+    },
+    {
+      "suite": "libero_10",
+      "task_id": 8,
+      "init_id": 8
+    }
+  ]
+}
