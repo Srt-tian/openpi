@@ -107,8 +107,15 @@ class PhysicalResidualHead(nnx.Module):
                 "residual32": residual32, "surrogate_gain_gate": gate}
 
 
-def paired_flow_inputs(actions, noise, flow_time):
-    """Construct one shared flow point/target; this helper never samples randomness."""
+def paired_flow_inputs(actions, noise, flow_time, valid_horizon=None):
+    """Construct one shared flow point/target without sampling randomness.
+
+    When a horizon mask is supplied, invalid action and noise rows are replaced
+    by that example's last valid row before flow arithmetic. This preserves the
+    dataset's repeat-last convention without changing valid rows or drawing new
+    noise. An all-invalid example falls back to zeros; its loss must remain
+    excluded by the same horizon mask.
+    """
     actions, noise, time = map(jnp.asarray, (actions, noise, flow_time))
     if actions.ndim != 3 or actions.shape[-1] != PADDED_ACTION_DIM or noise.shape != actions.shape:
         raise ValueError("actions/noise must share shape [B,T,32]")
@@ -121,6 +128,22 @@ def paired_flow_inputs(actions, noise, flow_time):
     else:
         raise ValueError("flow_time must have shape [B] or [B,T]")
     actions, noise, time = (jax.lax.stop_gradient(value) for value in (actions, noise, time))
+    if valid_horizon is not None:
+        mask = jnp.asarray(valid_horizon, dtype=jnp.bool_)
+        if mask.shape != actions.shape[:2]:
+            raise ValueError("valid_horizon must have shape [B,T]")
+        clean_actions = jnp.where(mask[..., None], actions, 0)
+        clean_noise = jnp.where(mask[..., None], noise, 0)
+        positions = jnp.arange(actions.shape[1])[None, :]
+        last_index = jnp.max(jnp.where(mask, positions, -1), axis=1)
+        safe_index = jnp.maximum(last_index, 0)[:, None, None]
+        last_actions = jnp.take_along_axis(clean_actions, safe_index, axis=1)
+        last_noise = jnp.take_along_axis(clean_noise, safe_index, axis=1)
+        has_valid = (last_index >= 0)[:, None, None]
+        last_actions = jnp.where(has_valid, last_actions, 0)
+        last_noise = jnp.where(has_valid, last_noise, 0)
+        actions = jnp.where(mask[..., None], clean_actions, last_actions)
+        noise = jnp.where(mask[..., None], clean_noise, last_noise)
     return {"noisy_actions": time * noise + (1.0 - time) * actions,
             "target_velocity": noise - actions,
             "flow_time": jax.lax.stop_gradient(canonical_time)}
@@ -212,7 +235,7 @@ def residual_training_loss(
     actions = jnp.asarray(actions)
     noise = jax.random.normal(noise_rng, actions.shape)
     time = jax.random.beta(time_rng, 1.5, 1, actions.shape[:-2]) * 0.999 + 0.001
-    flow = paired_flow_inputs(actions, noise, time)
+    flow = paired_flow_inputs(actions, noise, time, valid_horizon)
     base_velocity, base_hidden = frozen_base_model.flow_features(
         observation, flow["noisy_actions"], flow["flow_time"]
     )
