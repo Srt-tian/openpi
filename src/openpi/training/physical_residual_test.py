@@ -12,7 +12,8 @@ import pytest
 import openpi.models.model as model_api
 import openpi.models.pi0 as pi0
 from openpi.training.physical_residual import (
-    PhysicalResidualHead, balanced_task_batch, paired_flow_inputs, physical_residual_loss,
+    PhysicalResidualHead, balanced_task_batch, experimental_repeat_last_flow_inputs,
+    paired_flow_inputs, physical_residual_loss,
     residual_head_value_and_grad, residual_training_loss, sample_actions_with_physical_residual,
 )
 
@@ -55,22 +56,22 @@ def test_paired_inputs_are_caller_determined_and_validate_shapes():
     with pytest.raises(ValueError): paired_flow_inputs(actions[...,:7],noise[...,:7],jnp.array([.25,.5]))
 
 
-def test_paired_inputs_canonicalize_only_invalid_tail_without_nan_leakage():
+def test_experimental_repeat_last_flow_canonicalizes_invalid_tail_without_nan_leakage():
     actions=jnp.arange(2*3*32,dtype=jnp.float32).reshape(2,3,32)/100
     noise=actions+2;time=jnp.array([.25,.75]);mask=jnp.array([[1,1,0],[1,0,0]])
     dirty_actions=actions.at[0,2].set(jnp.nan).at[1,1:].set(1e9)
     dirty_noise=noise.at[0,2].set(jnp.nan).at[1,1:].set(-1e9)
-    out=paired_flow_inputs(dirty_actions,dirty_noise,time,mask)
+    out=experimental_repeat_last_flow_inputs(dirty_actions,dirty_noise,time,mask)
     assert jnp.isfinite(out["noisy_actions"]).all() and jnp.isfinite(out["target_velocity"]).all()
     np.testing.assert_array_equal(out["noisy_actions"][0,2],out["noisy_actions"][0,1])
     np.testing.assert_array_equal(out["target_velocity"][0,2],out["target_velocity"][0,1])
     np.testing.assert_array_equal(out["noisy_actions"][1,1:],jnp.broadcast_to(out["noisy_actions"][1,0],(2,32)))
     full=jnp.ones((2,3),dtype=jnp.bool_)
-    plain=paired_flow_inputs(actions,noise,time);masked=paired_flow_inputs(actions,noise,time,full)
+    plain=paired_flow_inputs(actions,noise,time);masked=experimental_repeat_last_flow_inputs(actions,noise,time,full)
     for key in plain:np.testing.assert_array_equal(masked[key],plain[key])
-    changed=paired_flow_inputs(actions.at[0,1].add(1),noise,time,mask)
+    changed=experimental_repeat_last_flow_inputs(actions.at[0,1].add(1),noise,time,mask)
     assert not np.array_equal(np.asarray(changed["noisy_actions"][0,2]),np.asarray(out["noisy_actions"][0,2]))
-    empty=paired_flow_inputs(jnp.full_like(actions,jnp.nan),jnp.full_like(noise,jnp.nan),time,jnp.zeros((2,3)))
+    empty=experimental_repeat_last_flow_inputs(jnp.full_like(actions,jnp.nan),jnp.full_like(noise,jnp.nan),time,jnp.zeros((2,3)))
     np.testing.assert_array_equal(empty["noisy_actions"],0);np.testing.assert_array_equal(empty["target_velocity"],0)
 
 
@@ -135,18 +136,36 @@ class _CrossHorizonFrozenBase(_TinyFrozenBase):
         return velocity,hidden
 
 
-def test_training_flow_masks_tail_before_cross_horizon_frozen_base(monkeypatch):
+def test_default_training_flow_keeps_native_iid_padding_context(monkeypatch):
     monkeypatch.setattr(model_api,"preprocess_observation",lambda key,obs,train:obs)
     base=_CrossHorizonFrozenBase();head=PhysicalResidualHead(4,width=8,horizon=2,ffn_dim=16,rngs=nnx.Rngs(18))
     obs=_Observation(jnp.ones((2,32)));actions=jnp.ones((2,2,32));mask=jnp.array([[1,0],[1,0]])
-    dirty=actions.at[:,1].set(jnp.nan);large=actions.at[:,1].set(1e9)
+    first=actions.at[:,1].set(3);second=actions.at[:,1].set(1e9)
     kwargs=dict(task_ids=jnp.array([0,1]),num_tasks=2,valid_horizon=mask)
-    loss_nan,_=residual_training_loss(base,head,jax.random.key(19),obs,dirty,**kwargs)
-    loss_large,_=residual_training_loss(base,head,jax.random.key(19),obs,large,**kwargs)
-    np.testing.assert_array_equal(loss_nan,loss_large)
-    changed=actions.at[:,0].set(2).at[:,1].set(jnp.nan)
-    loss_changed,_=residual_training_loss(base,head,jax.random.key(19),obs,changed,**kwargs)
-    assert float(loss_changed)!=float(loss_nan)
+    loss_first,_=residual_training_loss(base,head,jax.random.key(19),obs,first,**kwargs)
+    loss_second,_=residual_training_loss(base,head,jax.random.key(19),obs,second,**kwargs)
+    assert float(loss_first)!=float(loss_second)
+
+
+class _MaskSpyHead:
+    def __init__(self):self.seen=[]
+    def __call__(self,hidden,state,velocity,time,valid_horizon=None):
+        del hidden,state,time
+        self.seen.append(valid_horizon)
+        shape=velocity.shape[:2]
+        return {"residual7":jnp.zeros((*shape,7)),
+                "surrogate_gain_gate":jnp.full((*shape,1),.25)}
+
+
+def test_eval_head_never_observes_gt_valid_horizon(monkeypatch):
+    monkeypatch.setattr(model_api,"preprocess_observation",lambda key,obs,train:obs)
+    base=_CrossHorizonFrozenBase();head=_MaskSpyHead();obs=_Observation(jnp.ones((2,32)))
+    actions=jnp.ones((2,2,32));mask=jnp.array([[1,0],[1,0]])
+    kwargs=dict(task_ids=jnp.array([0,1]),num_tasks=2,valid_horizon=mask)
+    residual_training_loss(base,head,jax.random.key(20),obs,actions,train=False,**kwargs)
+    assert head.seen[-1] is None
+    residual_training_loss(base,head,jax.random.key(20),obs,actions,train=True,**kwargs)
+    np.testing.assert_array_equal(head.seen[-1],mask)
 
 
 def test_training_wrapper_one_flow_call_and_head_only_grad(monkeypatch):
