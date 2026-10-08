@@ -185,6 +185,29 @@ class Pi0(_model.BaseModel):
         ar_mask = jnp.array(ar_mask)
         return tokens, input_mask, ar_mask, adarms_cond
 
+    def flow_features(
+        self, observation: _model.Observation, x_t: _model.Actions, time: at.Float[at.Array, "*b"]
+    ) -> tuple[_model.Actions, at.Float[at.Array, "*b ah emb"]]:
+        """Return base velocity and final action hidden at a caller-supplied flow point.
+
+        ``observation`` must already be preprocessed. This helper draws no random
+        values, so a frozen base and an external residual head can share ``x_t``
+        and ``time`` exactly.
+        """
+        # one big forward pass of prefix + suffix at once
+        prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(observation)
+        suffix_tokens, suffix_mask, suffix_ar_mask, adarms_cond = self.embed_suffix(observation, x_t, time)
+        input_mask = jnp.concatenate([prefix_mask, suffix_mask], axis=1)
+        ar_mask = jnp.concatenate([prefix_ar_mask, suffix_ar_mask], axis=0)
+        attn_mask = make_attn_mask(input_mask, ar_mask)
+        positions = jnp.cumsum(input_mask, axis=1) - 1
+        (prefix_out, suffix_out), _ = self.PaliGemma.llm(
+            [prefix_tokens, suffix_tokens], mask=attn_mask, positions=positions, adarms_cond=[None, adarms_cond]
+        )
+        action_hidden = suffix_out[:, -self.action_horizon :]
+        v_t = self.action_out_proj(action_hidden)
+        return v_t, action_hidden
+
     @override
     def compute_loss(
         self, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions, *, train: bool = False
@@ -199,17 +222,7 @@ class Pi0(_model.BaseModel):
         x_t = time_expanded * noise + (1 - time_expanded) * actions
         u_t = noise - actions
 
-        # one big forward pass of prefix + suffix at once
-        prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(observation)
-        suffix_tokens, suffix_mask, suffix_ar_mask, adarms_cond = self.embed_suffix(observation, x_t, time)
-        input_mask = jnp.concatenate([prefix_mask, suffix_mask], axis=1)
-        ar_mask = jnp.concatenate([prefix_ar_mask, suffix_ar_mask], axis=0)
-        attn_mask = make_attn_mask(input_mask, ar_mask)
-        positions = jnp.cumsum(input_mask, axis=1) - 1
-        (prefix_out, suffix_out), _ = self.PaliGemma.llm(
-            [prefix_tokens, suffix_tokens], mask=attn_mask, positions=positions, adarms_cond=[None, adarms_cond]
-        )
-        v_t = self.action_out_proj(suffix_out[:, -self.action_horizon :])
+        v_t, _ = self.flow_features(observation, x_t, time)
 
         return jnp.mean(jnp.square(v_t - u_t), axis=-1)
 

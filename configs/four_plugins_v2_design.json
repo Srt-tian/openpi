@@ -1,0 +1,53 @@
+{
+  "schema": "pi05_four_plugins_v2_design.v1",
+  "status": "prototype_only",
+  "authority": {
+    "repository": "https://github.com/Srt-tian/openpi.git",
+    "branch": "feature/pi05-plugin-v2",
+    "base_commit": "208a1382959b934c833ee0b4aa9514986c5fde44"
+  },
+  "scope": {
+    "benchmark": "LIBERO",
+    "specializations": ["spatial", "object", "goal", "long"],
+    "independent_instances": 4,
+    "training_submitted": false,
+    "base_model_loaded_for_prototype_tests": false
+  },
+  "residual_head": {
+    "physical_action_dimensions": 7,
+    "padded_action_dimensions": 32,
+    "normalized_state_dimensions": 8,
+    "bottleneck": 256,
+    "base_hidden_feature_dimensions": "configurable",
+    "residual_tail_dimensions_7_to_31": "exact_zero",
+    "residual_final_projection_init": "zero",
+    "initial_surrogate_gate_probability": 0.25,
+    "frozen_inputs": ["base_action_hidden", "base_velocity", "target_velocity"]
+  },
+  "loss": {
+    "same_flow_time_and_noise_required_from_caller": true,
+    "physical7_only": true,
+    "optional_valid_horizon_mask": true,
+    "aggregation": "equal-weight per-task macro average",
+    "paired_relative_regret": "relu(error_phi - error_base + rho * error_base)",
+    "correction_norm_weight_default": 0.001,
+    "gate_target": "detached improvement of ungated residual relative to frozen base",
+    "gate_semantics": "surrogate teacher-relative competence; not rollout success"
+  },
+  "sampler": {
+    "training_data": "demonstration train split only",
+    "excludes_test_and_failure_trajectories": true,
+    "tasks_per_suite": 10,
+    "samples_per_task": 4,
+    "global_batch_size": 40,
+    "deterministic": true,
+    "task_ids_retained_for_macro_loss": true
+  },
+  "integration": {
+    "model_helper": "implemented_and_small_fixture_tested",
+    "train_step": "pending",
+    "checkpoint_format": "pending",
+    "full_model_bitwise_parity": "not_measured_without_full_weights; exact legacy-formula parity covered by small CPU fixture",
+    "rollout_success": "not_measured"
+  }
+}
