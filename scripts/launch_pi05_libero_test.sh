@@ -33,4 +33,15 @@ export XLA_PYTHON_CLIENT_MEM_FRACTION="${XLA_PYTHON_CLIENT_MEM_FRACTION:-0.90}"
 
 runner="${REPO_DIR}/scripts/train_four_plugins.py"
 [[ -f "${runner}" ]] || runner="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/train_four_plugins.py"
-exec "${python_bin}" "${runner}" "$@"
+has_rollout_manifest=false
+for arg in "$@"; do
+  if [[ "${arg}" == "--rollout-manifest" || "${arg}" == --rollout-manifest=* ]]; then
+    has_rollout_manifest=true
+    break
+  fi
+done
+if [[ "${has_rollout_manifest}" != true ]]; then
+  echo "fatal: named joint-loss job requires --rollout-manifest with full four-target handoff and uncensored call coverage" >&2
+  exit 2
+fi
+exec "${python_bin}" "${runner}" --require-joint-losses "$@"

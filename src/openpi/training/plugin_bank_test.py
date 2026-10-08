@@ -1,4 +1,5 @@
 import copy
+import json
 
 import flax.nnx as nnx
 import jax
@@ -144,6 +145,58 @@ def test_adapter_bank_checkpoint_round_trip(tmp_path):
     assert restored_steps == steps
     assert manifest["global_update_count"] == sum(steps.values())
     assert manifest["metadata_extra"]["commit"] == "abc123"
+
+
+def test_auxiliary_checkpoint_round_trip_and_corruption(tmp_path):
+    _, _, adapter = plugin_bank.partition_model(TinyModel(), _is_tiny_lora)
+    adapters = {suite: copy.deepcopy(adapter) for suite in plugin_bank.SUITES}
+    tx = optax.adam(1e-2)
+    opt_states = plugin_bank.initialize_optimizer_states(tx, adapters)
+    steps = {suite: 0 for suite in plugin_bank.SUITES}
+    auxiliary = {
+        "head_params": {"kernel": jnp.arange(15, dtype=jnp.float32).reshape(3, 5)},
+        "head_opt_state": optax.adamw(1e-4).init({"kernel": jnp.zeros((3, 5))}),
+        "updates": jnp.asarray(7, dtype=jnp.int32),
+    }
+    path = plugin_bank.save_bank(
+        tmp_path / "bank-with-head",
+        adapters,
+        opt_states,
+        steps,
+        base_checkpoint_path="/checkpoint/params",
+        norm_stats_hash="norm-hash",
+        base_manifest_hash="source-manifest-hash",
+        auxiliary_state=auxiliary,
+    )
+    restored = plugin_bank.load_auxiliary_state(path, auxiliary)
+    _assert_tree_equal(restored, auxiliary)
+
+    manifest = json.loads((path / "manifest.json").read_text())
+    auxiliary_path = path / manifest["auxiliary_file"]
+    auxiliary_path.write_bytes(auxiliary_path.read_bytes() + b"corrupt")
+    try:
+        plugin_bank.load_auxiliary_state(path, auxiliary)
+    except ValueError as error:
+        assert "checksum mismatch" in str(error)
+    else:
+        raise AssertionError("corrupted auxiliary payload was accepted")
+
+
+def test_stage_a_checkpoint_has_no_auxiliary_payload(tmp_path):
+    _, _, adapter = plugin_bank.partition_model(TinyModel(), _is_tiny_lora)
+    adapters = {suite: copy.deepcopy(adapter) for suite in plugin_bank.SUITES}
+    tx = optax.adam(1e-2)
+    opt_states = plugin_bank.initialize_optimizer_states(tx, adapters)
+    path = plugin_bank.save_bank(
+        tmp_path / "stage-a",
+        adapters,
+        opt_states,
+        {suite: 0 for suite in plugin_bank.SUITES},
+        base_checkpoint_path="/checkpoint/params",
+        norm_stats_hash="norm-hash",
+        base_manifest_hash="source-manifest-hash",
+    )
+    assert "auxiliary_file" not in json.loads((path / "manifest.json").read_text())
 
 
 def test_materialize_requires_every_base_leaf_and_zeros_all_b_factors():

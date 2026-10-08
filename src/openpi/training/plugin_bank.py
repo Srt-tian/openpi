@@ -345,6 +345,7 @@ def save_bank(
     norm_stats_hash: str,
     base_manifest_hash: str,
     metadata_extra: Mapping[str, Any] | None = None,
+    auxiliary_state: Any | None = None,
 ) -> pathlib.Path:
     """Atomically create an adapter-only bank checkpoint.
 
@@ -397,6 +398,15 @@ def save_bank(
             "banks": banks,
             "metadata_extra": dict(metadata_extra or {}),
         }
+        if auxiliary_state is not None:
+            auxiliary_name = "auxiliary.msgpack"
+            auxiliary_data, auxiliary_leaf_count = _optimizer_to_bytes(auxiliary_state)
+            _write_bytes(staging / auxiliary_name, auxiliary_data)
+            manifest.update({
+                "auxiliary_file": auxiliary_name,
+                "auxiliary_sha256": _sha256(auxiliary_data),
+                "auxiliary_leaf_count": auxiliary_leaf_count,
+            })
         # Fail before publishing if caller metadata is not portable JSON.
         manifest_data = (json.dumps(manifest, sort_keys=True, indent=2) + "\n").encode()
         _write_bytes(staging / "manifest.json", manifest_data)
@@ -416,6 +426,30 @@ def save_bank(
             shutil.rmtree(staging)
         raise
     return target
+
+
+def load_auxiliary_state(path: str | pathlib.Path, template: Any) -> Any:
+    """Verify and restore an optional pure-tree auxiliary checkpoint payload.
+
+    ``template`` supplies the PyTree definition and leaf shapes/dtypes, just as
+    optimizer templates do for :func:`load_bank`.  Keeping this separate makes
+    stage-A checkpoints (which have no auxiliary payload) fully readable.
+    """
+    root = pathlib.Path(path).expanduser().resolve()
+    manifest = json.loads((root / "manifest.json").read_text())
+    auxiliary_file = manifest.get("auxiliary_file")
+    if auxiliary_file is None:
+        raise ValueError("plugin-bank checkpoint has no auxiliary state")
+    if auxiliary_file != "auxiliary.msgpack":
+        raise ValueError("unsafe or unexpected auxiliary payload name")
+    data = (root / auxiliary_file).read_bytes()
+    if _sha256(data) != manifest.get("auxiliary_sha256"):
+        raise ValueError("auxiliary checksum mismatch")
+    try:
+        leaf_count = int(manifest["auxiliary_leaf_count"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("invalid auxiliary leaf count") from error
+    return _optimizer_from_bytes(template, data, leaf_count)
 
 
 def _check_binding(actual: str, expected: str | None, label: str) -> None:

@@ -1,0 +1,41 @@
+{
+  "kind": "design_and_activation_contract",
+  "is_runtime_config": false,
+  "task_name": "PI05-libero-test",
+  "objectives": {
+    "total": "L_FM + lambda_handoff * L_handoff + lambda_call * L_call",
+    "handoff": "Flow matching on successful real continuation action chunks at states reached by a different source policy; update the selected target adapter only.",
+    "call": "Masked binary cross entropy for actually attempted policies completing the task within a specified action budget; untried policies are unlabelled, not failures.",
+    "pilot_weights": {"handoff": 0.3, "call": 0.1},
+    "weights_validated_on_libero": false
+  },
+  "gradient_ownership": {
+    "original_pi05_parameters": "frozen",
+    "selected_adapter": "FM and optional handoff gradients",
+    "inactive_adapters": "no optimizer step or momentum/weight-decay update",
+    "shared_call_head": "call-loss gradients only; current-observation features are stop-gradient",
+    "simulator": "no gradient through rollout dynamics"
+  },
+  "calling_head": {
+    "policy_order": ["base", "spatial", "object", "goal", "long"],
+    "input": "2048-D masked-mean frozen VLM prefix + 32-D normalized state + log1p(action_budget)/log(1001)",
+    "architecture": "2081 -> 256 GELU -> 5 independent logits",
+    "status": "experimental_uncalibrated",
+    "lifecycle": "Record label-generating policy bundle IDs. After adapters change, collect fresh outcomes and validate/calibrate scores before using them as deployment success probabilities. No automatic live harness routing change."
+  },
+  "data_requirements": {
+    "manifest": "Unified schema-v1 real-rollout manifest with SHA-256-bound NPZ samples, base-inventory and normalization bindings",
+    "handoff": "Different source/target policy; target is an adapter; verified successful continuation or expert recovery; raw LIBERO delta action chunks [10,7]",
+    "call": "Single attempted policy until terminal state or budget; zero intervening policy switches; interrupted/infra-error runs are excluded, not failures",
+    "features": "Current RGB cameras, proprioception, task prompt and assigned budget only; no future/terminal observations or success labels in network inputs",
+    "splits": "Root episode groups must not cross training and validation. Official evaluation records are forbidden as training input."
+  },
+  "activation": {
+    "dedicated_launch": "Requires --rollout-manifest and --require-joint-losses; refuses missing labels rather than silently running a baseline",
+    "explicit_baseline": "Generic Python runner without a manifest retains the old FM path and logs disabled reasons",
+    "strict_coverage": "Training handoff labels for all four target adapters and at least one uncensored training call outcome for each of the five callable policies; never fabricate missing negatives",
+    "actual_rollout_labels_prepared": false,
+    "gpu_training_started": false
+  },
+  "claim_boundary": "Joint objective, shared calling head and cross-policy state-distribution supervision; not differentiable end-to-end simulation, not guaranteed direct parameter coupling between adapter banks, and not yet demonstrated benchmark gains."
+}
