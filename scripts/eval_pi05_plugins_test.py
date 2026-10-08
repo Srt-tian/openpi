@@ -13,6 +13,13 @@ assert SPEC.loader is not None
 sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
+CONTROLLER_PATH = Path(__file__).with_name("run_pi05_plugin_pilot.py")
+CONTROLLER_SPEC = importlib.util.spec_from_file_location("run_pi05_plugin_pilot", CONTROLLER_PATH)
+CONTROLLER = importlib.util.module_from_spec(CONTROLLER_SPEC)
+assert CONTROLLER_SPEC.loader is not None
+sys.modules[CONTROLLER_SPEC.name] = CONTROLLER
+CONTROLLER_SPEC.loader.exec_module(CONTROLLER)
+
 
 class EvalPi05PluginsTest(unittest.TestCase):
     def test_plan_is_16_cases_per_arm_and_suite_base_then_plugin(self):
@@ -141,6 +148,35 @@ class EvalPi05PluginsTest(unittest.TestCase):
         del missing["adapter_sha256"]
         with self.assertRaisesRegex(ValueError, "must attest"):
             MODULE.validated_metadata_subset(missing, "base", "a" * 64)
+
+    def test_init_count_ten_has_dynamic_paired_coverage(self):
+        plan = MODULE.execution_plan(7, init_count=10)
+        self.assertEqual(len(plan), 160)
+        self.assertEqual(sum(row["arm"] == "base" for row in plan), 80)
+        self.assertEqual(sum(row["arm"] == "plugin" for row in plan), 80)
+        rows = [{**item, "case_id": item["id"], "success": True, "status": "success"} for item in plan]
+        paired = CONTROLLER.validate_pair_coverage(rows, 10)
+        self.assertEqual(len(paired), 80)
+        self.assertEqual(CONTROLLER.coverage_expectations(10), {
+            "base_batch": 80, "plugin_batch": 20, "base_total": 80,
+            "plugin_total": 80, "pairs": 80, "episodes": 160,
+        })
+
+    def test_init_count_rejects_zero_and_above_official_range(self):
+        for invalid in (0, 51):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "1..50"):
+                    MODULE.build_cases(7, invalid)
+                with self.assertRaisesRegex(ValueError, "1..50"):
+                    CONTROLLER.coverage_expectations(invalid)
+
+    def test_pair_coverage_rejects_missing_or_duplicate_arm(self):
+        plan = MODULE.execution_plan(7)
+        rows = [{**item, "case_id": item["id"], "success": True, "status": "success"} for item in plan]
+        with self.assertRaisesRegex(RuntimeError, "coverage"):
+            CONTROLLER.validate_pair_coverage(rows[:-1], 2)
+        with self.assertRaisesRegex(RuntimeError, "duplicate"):
+            CONTROLLER.validate_pair_coverage(rows + [dict(rows[0])], 2)
 
 
 if __name__ == "__main__":

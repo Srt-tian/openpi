@@ -44,7 +44,7 @@ TASK_IDS_BY_SUITE = {
     "libero_goal": (0, 3),
     "libero_10": (0, 8),
 }
-INIT_IDS = (0, 1)
+DEFAULT_INIT_COUNT = 2
 SETTLING_STEPS = 10
 RENDER_SIZE = 256
 MODEL_IMAGE_SIZE = 224
@@ -68,12 +68,26 @@ class Case:
         return f"{self.suite}/{self.task_id}/{self.init_id}"
 
 
-def build_cases(seed: int) -> list[Case]:
+def validate_init_count(value: int) -> int:
+    if isinstance(value, bool) or not 1 <= value <= 50:
+        raise ValueError("init_count must be in 1..50")
+    return value
+
+
+def argparse_init_count(value: str) -> int:
+    try:
+        return validate_init_count(int(value))
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError("init count must be an integer in 1..50") from exc
+
+
+def build_cases(seed: int, init_count: int = DEFAULT_INIT_COUNT) -> list[Case]:
+    init_count = validate_init_count(init_count)
     cases = []
     for suite_number, suite in enumerate(SUITES):
         for task_id in TASK_IDS_BY_SUITE[suite]:
             joint_task_number = suite_number * 10 + task_id
-            for init_id in INIT_IDS:
+            for init_id in range(init_count):
                 cases.append(Case(
                     suite=suite,
                     task_id=task_id,
@@ -84,9 +98,14 @@ def build_cases(seed: int) -> list[Case]:
     return cases
 
 
-def execution_plan(seed: int, suites: tuple[str, ...] = SUITES, arm: str | None = None) -> list[dict[str, Any]]:
+def execution_plan(
+    seed: int,
+    suites: tuple[str, ...] = SUITES,
+    arm: str | None = None,
+    init_count: int = DEFAULT_INIT_COUNT,
+) -> list[dict[str, Any]]:
     """Suite-major paired plan: all base cases, then the same plugin cases."""
-    cases = build_cases(seed)
+    cases = build_cases(seed, init_count)
     plan = []
     for suite in suites:
         suite_cases = [case for case in cases if case.suite == suite]
@@ -109,6 +128,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--arm", choices=("base", "plugin"))
     parser.add_argument("--expected-checkpoint-sha256")
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--init-count", type=argparse_init_count, default=DEFAULT_INIT_COUNT)
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
     parser.add_argument("--api-key-env", default="OPENPI_API_KEY")
     return parser.parse_args(argv)
@@ -482,7 +502,7 @@ def summarize(rows: list[dict[str, Any]], manifest_hash: str, planned: int) -> d
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     suites = tuple(dict.fromkeys(args.suites or SUITES))
-    plan = execution_plan(args.seed, suites, args.arm)
+    plan = execution_plan(args.seed, suites, args.arm, args.init_count)
     if not args.execute:
         print(json.dumps({"execute": False, "planned_episodes": len(plan), "plan": plan}, indent=2))
         return 0
@@ -502,7 +522,7 @@ def main(argv: list[str] | None = None) -> int:
     videos.mkdir()
     manifest = {
         "schema": "pi05_plugin_paired_eval.manifest.v1",
-        "protocol": "four_suites_two_tasks_two_inits_base_then_suite_plugin",
+        "protocol": "four_suites_two_tasks_variable_inits_base_then_suite_plugin",
         "service_uri": args.service_uri,
         "service_identity": service_identity,
         "batch_scope": {
@@ -513,6 +533,7 @@ def main(argv: list[str] | None = None) -> int:
         },
         "physicalrsi_root": str(args.physicalrsi_root.resolve()),
         "environment_seed": args.seed,
+        "init_count": args.init_count,
         "policy_seed_formula": "seed + joint40_task_number * 50 + init_id + inference_call * 1000003",
         "policy_seed_protocol": SEED_PROTOCOL,
         "policy_selection": "fixed_by_arm_and_suite_never_by_init_or_observation",

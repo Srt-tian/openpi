@@ -15,6 +15,46 @@ import sys
 import time
 
 
+def init_count_arg(value):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError("init count must be an integer in 1..50") from exc
+    if not 1 <= parsed <= 50:
+        raise argparse.ArgumentTypeError("init count must be an integer in 1..50")
+    return parsed
+
+
+def coverage_expectations(init_count):
+    if isinstance(init_count, bool) or not 1 <= init_count <= 50:
+        raise ValueError("init_count must be in 1..50")
+    return {
+        "base_batch": 8 * init_count,
+        "plugin_batch": 2 * init_count,
+        "base_total": 8 * init_count,
+        "plugin_total": 8 * init_count,
+        "pairs": 8 * init_count,
+        "episodes": 16 * init_count,
+    }
+
+
+def validate_pair_coverage(rows, init_count):
+    expected = coverage_expectations(init_count)
+    paired = {}
+    for row in rows:
+        pair = paired.setdefault(row["case_id"], {})
+        if row["arm"] in pair:
+            raise RuntimeError("pair coverage contains a duplicate arm")
+        pair[row["arm"]] = row
+    base_count = sum(row["arm"] == "base" for row in rows)
+    plugin_count = sum(row["arm"] == "plugin" for row in rows)
+    if (len(rows) != expected["episodes"] or len(paired) != expected["pairs"]
+            or base_count != expected["base_total"] or plugin_count != expected["plugin_total"]
+            or any(set(pair) != {"base", "plugin"} for pair in paired.values())):
+        raise RuntimeError("pair coverage is incomplete or duplicated")
+    return paired
+
+
 def save(path, value):
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
@@ -42,7 +82,9 @@ def main():
     p.add_argument("--runtime-root", type=Path, required=True)
     p.add_argument("--policy-python", type=Path, required=True)
     p.add_argument("--port", type=int, default=8090)
+    p.add_argument("--init-count", type=init_count_arg, default=2)
     args = p.parse_args()
+    expected = coverage_expectations(args.init_count)
     root = args.code.resolve()
     git = lambda *a: subprocess.check_output(["git", "-C", str(root), *a], text=True).strip()
     if git("rev-parse", "HEAD") != args.expected_commit or git("status", "--porcelain"):
@@ -67,7 +109,8 @@ def main():
     record = {"schema": 1, "status": "starting", "started_unix": time.time(),
               "code": str(root), "commit": args.expected_commit,
               "base": str(args.base), "plugins": str(args.plugins),
-              "checkpoint_sha256": manifest_sha, "planned_episodes": 32,
+              "checkpoint_sha256": manifest_sha, "init_count": args.init_count,
+              "planned_episodes": expected["episodes"],
               "scope": "development_pilot_not_official_score", "batches": []}
     save(args.output / "controller.json", record)
     policy_env = dict(os.environ)
@@ -113,7 +156,7 @@ def main():
                 eval_args = [str(root / "scripts/eval_pi05_plugins.py"), "--execute", "--arm", arm,
                     "--service-uri", f"ws://127.0.0.1:{args.port}", "--timeout-seconds", "300",
                     "--expected-checkpoint-sha256", manifest_sha, "--physicalrsi-root", str(args.physicalrsi_root),
-                    "--output", str(args.output / policy_id)]
+                    "--output", str(args.output / policy_id), "--init-count", str(args.init_count)]
                 if suite:
                     eval_args += ["--suite", suite]
                 venv_site = args.policy_python.parent.parent / "lib/python3.11/site-packages"
@@ -128,6 +171,9 @@ def main():
                 if exit_code:
                     raise RuntimeError(f"{policy_id} evaluator exited {exit_code}")
                 summary = json.loads((args.output / policy_id / "summary.json").read_text())
+                expected_batch = expected["base_batch"] if policy_id == "base" else expected["plugin_batch"]
+                if summary.get("complete") is not True or summary.get("episodes") != expected_batch:
+                    raise RuntimeError(f"{policy_id} batch coverage is incomplete; stop without retry")
                 batch.update(status="complete", episodes=summary["episodes"],
                     successes=summary["successes"], errors=summary["errors"])
                 save(args.output / "controller.json", record)
@@ -139,12 +185,9 @@ def main():
         for policy_id, _, _ in batches:
             for path in sorted((args.output / policy_id / "episodes").glob("*.json")):
                 rows.append(json.loads(path.read_text()))
-        paired = {}
-        for row in rows:
-            paired.setdefault(row["case_id"], {})[row["arm"]] = row
-        if len(rows) != 32 or len(paired) != 16 or any(set(pair) != {"base", "plugin"} for pair in paired.values()):
-            raise RuntimeError("pair coverage is incomplete or duplicated")
-        result = {"episodes": 32, "pairs": 16, "errors": sum(row["status"] == "error" for row in rows),
+        paired = validate_pair_coverage(rows, args.init_count)
+        result = {"episodes": expected["episodes"], "pairs": expected["pairs"],
+            "init_count": args.init_count, "errors": sum(row["status"] == "error" for row in rows),
             "base_successes": sum(pair["base"]["success"] for pair in paired.values()),
             "plugin_successes": sum(pair["plugin"]["success"] for pair in paired.values()),
             "recovered": [key for key, pair in paired.items() if pair["plugin"]["success"] and not pair["base"]["success"]],
