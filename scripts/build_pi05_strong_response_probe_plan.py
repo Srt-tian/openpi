@@ -81,7 +81,7 @@ def build(output: Path = DEFAULT_OUTPUT, baseline: Path = DEFAULT_BASELINE,
                     "shared_hard_case": {"base": "1/10", "plugin": "0/10"},
                     "observations": {"old_probe_hard_failure_cue_coverage": "9/9",
                                      "old_probe_hard_success_cue_coverage": "0/1",
-                                     "old_probe_commanded_lift_m": 0.05,
+                                     "old_probe_lift_z_action": 0.05,
                                      "old_probe_actual_lift_approx_m": 0.0038},
                     "forbidden_oracles": ["object_state", "grasp_state", "init_id_routing"],
                 }

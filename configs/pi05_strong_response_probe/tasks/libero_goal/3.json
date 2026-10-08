@@ -11,9 +11,9 @@
     },
     "observations": {
       "old_probe_actual_lift_approx_m": 0.0038,
-      "old_probe_commanded_lift_m": 0.05,
       "old_probe_hard_failure_cue_coverage": "9/9",
-      "old_probe_hard_success_cue_coverage": "0/1"
+      "old_probe_hard_success_cue_coverage": "0/1",
+      "old_probe_lift_z_action": 0.05
     },
     "scope": "posthoc_repeat_diagnostic_not_full400_score",
     "shared_hard_case": {
