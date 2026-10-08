@@ -2,6 +2,7 @@ import numpy as np
 import jax.numpy as jnp
 import optax
 from scripts import train_four_residual_heads as target
+from openpi.training.physical_residual import physical_residual_loss
 
 class E:
  def __init__(self,task,length,index=None):self.task,self.length,self.index=task,length,task if index is None else index
@@ -26,7 +27,7 @@ def test_fixed_protocol_and_resumable_balanced_sampler():
 
 def test_cli_requires_output_and_fixed_defaults(tmp_path):
  args=target.parse_args(["--output-dir",str(tmp_path),"--base-params-sha256","a"*64])
- assert args.batch_size==40 and args.seed==42 and not args.preflight_only
+ assert (args.batch_size,args.seed,args.chunk_sampling,args.padding_supervision)==(40,42,"all_observations","official_repeat_last")
 
 def test_parameter_content_hash_binds_names_sizes_and_bytes(tmp_path):
  (tmp_path/"a").write_bytes(b"one");(tmp_path/"b").write_bytes(b"two")
@@ -42,27 +43,70 @@ def test_first_real_optimizer_update_changes_head_and_is_finite():
  assert np.isfinite(np.linalg.norm(np.asarray(updates["weight"])))
  assert not np.array_equal(np.asarray(changed["weight"]),np.asarray(params["weight"]))
 
-def test_full_chunk_intervals_cover_terminal_action_and_masks_are_all_valid():
+def test_all_observations_admits_tail_with_official_repeat_last_supervision():
  ds=ChunkD();intervals=target.intervals_by_task(ds)
- assert intervals[0]==[(0,1)] and intervals[9]==[(90,1)]
+ assert intervals[0]==[(0,10)] and intervals[9]==[(90,10)]
  tagged=target.TaggedTransformedDataset(ds,lambda x:x)
  value=tagged[0];assert value["actions"][-1]==9 and np.array_equal(value["v2_valid_horizon"],np.ones(10))
+ for frame in range(1,10):
+  value=tagged[frame]
+  assert int(value["v2_valid_horizon"].sum())==10
+  assert int(value["v2_episode_valid_horizon"].sum())==10-frame
+  assert value["actions"][-1]==9
+ assert int(tagged[9]["v2_valid_horizon"].sum())==10
+ assert int(tagged[9]["v2_episode_valid_horizon"].sum())==1
+ prefix=target.TaggedTransformedDataset(ds,lambda x:x,padding_supervision="valid_prefix")
+ assert int(prefix[9]["v2_valid_horizon"].sum())==1
+
+def test_full_chunk_mode_isolated_and_short_episode_retained_by_default():
+ ds=ChunkD();assert target.intervals_by_task(ds,"full_chunks")[0]==[(0,1)]
+ tagged=target.TaggedTransformedDataset(ds,lambda x:x,"full_chunks")
+ assert tagged[0]["v2_valid_horizon"].sum()==10
  try:tagged[1]
  except IndexError:pass
- else:raise AssertionError("tail-padded start was admitted")
-
-def test_short_episode_fails_and_fixed_holdout_is_balanced():
+ else:raise AssertionError("tail start leaked into full_chunks ablation")
  ds=D();ds.episodes=(E(0,9),*ds.episodes[1:]);ds._ends=np.cumsum([e.length for e in ds.episodes])
- try:target.intervals_by_task(ds)
- except ValueError as error:assert "shorter than horizon" in str(error)
- else:raise AssertionError("short episode silently dropped")
+ assert target.intervals_by_task(ds)[0]==[(0,9)]
+
+def test_tail_holdout_supports_global_suite_task_ids_and_stays_in_frame_bounds():
+ for offset in (0,10,20,30):
+  episodes=[]
+  for task in range(offset,offset+10):episodes.extend((E(task,3,task*2),E(task,8,task*2+1)))
+  ds=type("SuiteD",(),{})();ds.episodes=tuple(episodes);ds._ends=np.cumsum([e.length for e in episodes])
+  indices,metadata=target.fixed_tail_indices(ds)
+  assert len(indices)==40 and {item["task"] for item in metadata}==set(range(offset,offset+10))
+  index_tasks=[ds.episodes[int(np.searchsorted(ds._ends,index,side="right"))].task-offset for index in indices]
+  assert np.bincount(index_tasks,minlength=10).tolist()==[4]*10
+  for index in indices:
+   pos=int(np.searchsorted(ds._ends,index,side="right"));start=0 if pos==0 else int(ds._ends[pos-1])
+   assert start<=index<int(ds._ends[pos])
+
+def test_fixed_general_and_tail_holdouts_are_task_balanced():
  ds=D();indices=target.fixed_holdout_indices(ds,42);assert len(indices)==80
  tasks=[]
  for index in indices:tasks.append(int(np.searchsorted(ds._ends,index,side="right")))
  assert np.bincount(tasks,minlength=10).tolist()==[8]*10
+ episodes=[]
+ for task in range(10):episodes.extend((E(task,3,task*2),E(task,8,task*2+1)))
+ ds.episodes=tuple(episodes);ds._ends=np.cumsum([e.length for e in episodes])
+ indices,metadata=target.fixed_tail_indices(ds)
+ tasks=[ds.episodes[int(np.searchsorted(ds._ends,index,side="right"))].task for index in indices]
+ assert len(indices)==40 and np.bincount(tasks,minlength=10).tolist()==[4]*10
+ assert len(metadata)==20 and sum(item["clamped_or_repeated"] for item in metadata)==10
+ valid_counts=[count for item in metadata for count in item["valid_counts"]]
+ assert valid_counts.count(1)==20 and valid_counts.count(3)==10 and valid_counts.count(5)==10
 
 def test_holdout_rng_is_fixed_per_suite():
  import jax
  a=target.fixed_eval_rng(42,"spatial");b=target.fixed_eval_rng(42,"spatial");c=target.fixed_eval_rng(42,"object")
  assert np.array_equal(np.asarray(jax.random.key_data(a)),np.asarray(jax.random.key_data(b)))
  assert not np.array_equal(np.asarray(jax.random.key_data(a)),np.asarray(jax.random.key_data(c)))
+
+def test_invalid_gt_suffix_has_zero_loss_and_gradient():
+ base=jnp.zeros((1,10,32));residual=jnp.zeros((1,10,7));gate=jnp.ones((1,10,1));mask=jnp.array([[1]+[0]*9])
+ def loss(target):
+  return physical_residual_loss(base_velocity=base,residual7=residual,gate=gate,target_velocity=target,
+    task_ids=jnp.array([0]),num_tasks=1,valid_horizon=mask,correction_weight=0,gate_weight=0)[0]
+ clean=jnp.zeros((1,10,32));dirty=clean.at[:,1:,:7].set(123)
+ np.testing.assert_allclose(loss(clean),loss(dirty))
+ np.testing.assert_array_equal(np.asarray(jax.grad(loss)(dirty)[:,1:,:7]),0)

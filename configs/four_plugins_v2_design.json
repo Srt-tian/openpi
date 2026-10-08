@@ -54,7 +54,13 @@
     "global_batch_size": 40,
     "deterministic": true,
     "task_ids_retained_for_macro_loss": true,
-    "training_chunks": "complete horizon-10 chunks only; terminal actions remain covered by the final valid start"
+    "training_chunks": "default all_observations: every frame is eligible; optional full_chunks ablation admits complete horizon-10 chunks only",
+    "padding_supervision_default": "official_repeat_last: supervise all H=10 clipped-index repeat-last targets, matching the public OpenPI/LeRobot tail convention",
+    "padding_supervision_optional_ablation": "valid_prefix: mask target loss/soft labels after the episode-valid prefix; not automatically scheduled as a second run",
+    "tail_metadata": "episode-valid K is retained separately for K1/K5 coverage and never used as deployment routing",
+    "tail_padding_scope": "tail convention alignment only: this residual objective covers physical7 rather than the public native 32-dimension temporal mean loss",
+    "noise_and_eval": "paired-flow noise remains IID/native; evaluation head features and deployment receive no GT remaining-length mask, while an optional eval GT mask affects loss/soft labels only",
+    "padding_invariance": "not claimed for the frozen base or the complete residual pipeline"
   },
   "training_protocol": {
     "task_name": "PI05-LIBERO-TEST-V2",
@@ -63,7 +69,10 @@
     "round_robin_order": ["spatial", "object", "goal", "long"],
     "seed": 42,
     "holdout_demos_per_task": 2,
-    "fixed_holdout_complete_chunks_per_suite": 80,
+    "fixed_holdout_general_samples_per_suite": 80,
+    "fixed_holdout_tail_samples_per_suite": 40,
+    "fixed_holdout_tail_selection": "two holdout demonstrations per task, each at final and fifth-from-final frame (short episodes clamp with metadata)",
+    "fixed_holdout_tail_coverage": {"K1": 20, "K5": 20, "metrics": "one aggregate holdout_tail forward; no duplicated rows"},
     "holdout_rng": "fixed per suite across diagnostics",
     "regular_bank_checkpoint_global_updates": [20000, 40000],
     "smoke_checkpoint": {"global_step": 4, "directory": "checkpoints_smoke", "regular_checkpoint": false},
