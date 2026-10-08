@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 
 import jax
 import numpy as np
@@ -12,10 +13,16 @@ import openpi.shared.download as download
 
 
 class PaligemmaTokenizer:
-    def __init__(self, max_len: int = 48):
+    def __init__(self, max_len: int = 48, *, tokenizer_path: str | Path | None = None):
         self._max_len = max_len
 
-        path = download.maybe_download("gs://big_vision/paligemma_tokenizer.model", gs={"token": "anon"})
+        # An explicit local asset supports offline, read-only training mounts.
+        # The default path and tokenization semantics remain unchanged.
+        path = (
+            Path(tokenizer_path)
+            if tokenizer_path is not None
+            else download.maybe_download("gs://big_vision/paligemma_tokenizer.model", gs={"token": "anon"})
+        )
         with path.open("rb") as f:
             self._tokenizer = sentencepiece.SentencePieceProcessor(model_proto=f.read())
 
