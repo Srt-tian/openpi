@@ -28,6 +28,12 @@ TOP = {"schema", "round_id", "round_dir", "canonical", "candidate_registry",
        "aggregate_script", "export_script", "weights", "runtime", "workers", "collection"}
 WORKER = {"worker_id", "host", "user", "control_path", "checkout", "job", "output",
           "policy_python", "gpu_id", "port"}
+SUITES = ("libero_spatial", "libero_object", "libero_goal", "libero_10")
+OFFICIAL_CAPS = {"libero_spatial": 220, "libero_object": 280,
+                 "libero_goal": 300, "libero_10": 520}
+PLAN_CASE_FIELDS = {"suite", "task_id", "init_id", "replicate_id",
+                    "joint_task_number", "official_cap"}
+WORKER_CASE_FIELDS = {"suite", "task_id", "init_id", "replicate_id"}
 
 
 def digest(path: Path) -> str:
@@ -56,21 +62,49 @@ def exact_keys(value: object, keys: set[str], label: str) -> dict:
     return value
 
 
-def case_key(row: dict) -> tuple[str, int, int, int]:
-    required = {"suite", "task_id", "init_id", "replicate_id",
-                "joint_task_number", "official_cap"}
-    if not isinstance(row, dict) or set(row) != required:
+def _base_case_key(row: dict, fields: set[str]) -> tuple[str, int, int, int]:
+    if not isinstance(row, dict) or set(row) != fields:
         raise ValueError("case schema mismatch; wildcards and extra seed fields are forbidden")
     suite, task, init, rep = (row["suite"], row["task_id"], row["init_id"],
                               row["replicate_id"])
-    if (suite not in {"libero_spatial", "libero_object", "libero_goal", "libero_10"}
+    if (suite not in SUITES
             or type(task) is not int or not 0 <= task < 10
             or type(init) is not int or not 0 <= init < 10
-            or type(rep) is not int or rep != 0
-            or type(row["joint_task_number"]) is not int
-            or type(row["official_cap"]) is not int or row["official_cap"] <= 0):
+            or type(rep) is not int or rep != 0):
         raise ValueError("case is outside the fixed official 40x10 replicate-0 protocol")
     return suite, task, init, rep
+
+
+def catalog_contract(catalog: object, task_keys: set[str]) -> dict[str, tuple[int, int]]:
+    if not isinstance(catalog, dict) or catalog.get("schema") != 1 \
+            or not isinstance(catalog.get("tasks"), list) or len(catalog["tasks"]) != 40:
+        raise ValueError("task catalog is not the matching explicit LIBERO-40")
+    result = {}
+    for row in catalog["tasks"]:
+        if not isinstance(row, dict):
+            raise ValueError("task catalog row must be an object")
+        suite, task, cap = row.get("suite"), row.get("task_index"), row.get("max_steps")
+        key = row.get("key")
+        if (suite not in SUITES or type(task) is not int or not 0 <= task < 10
+                or key != f"{suite}/{task}" or cap != OFFICIAL_CAPS[suite]
+                or key in result):
+            raise ValueError("task catalog disagrees with official suite/task/cap contract")
+        result[key] = (SUITES.index(suite) * 10 + task, cap)
+    if set(result) != task_keys:
+        raise ValueError("task catalog is not the matching explicit LIBERO-40")
+    return result
+
+
+def plan_case_key(row: dict, contract: dict[str, tuple[int, int]]) -> tuple[str, int, int, int]:
+    key = _base_case_key(row, PLAN_CASE_FIELDS)
+    derived = contract.get(f"{key[0]}/{key[1]}")
+    if derived is None or (row["joint_task_number"], row["official_cap"]) != derived:
+        raise ValueError("case plan joint task number or official cap disagrees with catalog")
+    return key
+
+
+def worker_case_key(row: dict) -> tuple[str, int, int, int]:
+    return _base_case_key(row, WORKER_CASE_FIELDS)
 
 
 def git_value(root: Path, *args: str) -> str:
@@ -124,21 +158,19 @@ def load_and_validate(spec_path: Path, source: Path) -> dict:
         if key not in changed and old.read_bytes() != new.read_bytes():
             raise ValueError(f"unchanged task config differs: {key}")
 
+    catalog = json.loads(paths["task_catalog"].read_text())
+    contract = catalog_contract(catalog, set(baseline["tasks"]))
     plan = json.loads(paths["case_plan"].read_text())
     if set(plan) != {"schema", "cases"} or plan["schema"] != "pi05_harness_candidate400_cases.v1" \
             or not isinstance(plan["cases"], list) or len(plan["cases"]) != 400:
         raise ValueError("case plan must be the explicit canonical 400-pair schema")
-    expected = {case_key(row) for row in plan["cases"]}
+    expected = {plan_case_key(row, contract) for row in plan["cases"]}
     canonical_cases = {(suite, task, init, 0)
-        for suite in ("libero_spatial", "libero_object", "libero_goal", "libero_10")
+        for suite in SUITES
         for task in range(10) for init in range(10)}
     if len(expected) != 400 or expected != canonical_cases:
         raise ValueError("case plan is not exact unique LIBERO-40 x official-init-10")
 
-    catalog = json.loads(paths["task_catalog"].read_text())
-    catalog_keys = {row.get("key") for row in catalog.get("tasks", [])}
-    if catalog.get("schema") != 1 or catalog_keys != set(baseline["tasks"]):
-        raise ValueError("task catalog is not the matching explicit LIBERO-40")
     routes = json.loads(paths["routes"].read_text())
     if (set(routes.get("tasks", {})) != set(baseline["tasks"])
             or set(routes["tasks"].values()) != {"base"}
@@ -189,9 +221,12 @@ def load_and_validate(spec_path: Path, source: Path) -> dict:
                 or trial.get("registry") != spec["candidate_registry"]):
             raise ValueError("worker job is not an exact matched native-control/candidate mapping")
         cases_doc = json.loads(checked_file(source, control["cases"]).read_text())
-        if set(cases_doc) != {"schema", "cases"} or len(cases_doc["cases"]) != 100:
+        if (set(cases_doc) != {"schema", "cases"}
+                or cases_doc["schema"] != "pi05_harness_cases.v1"
+                or not isinstance(cases_doc["cases"], list)
+                or len(cases_doc["cases"]) != 100):
             raise ValueError("each worker must have exactly 100 cases")
-        keys = [case_key(row) for row in cases_doc["cases"]]
+        keys = [worker_case_key(row) for row in cases_doc["cases"]]
         if len(set(keys)) != 100 or covered.intersection(keys):
             raise ValueError("worker cases contain duplicates or overlap")
         covered.update(keys)
@@ -344,7 +379,14 @@ def wait_terminal(spec: dict, commands: Commands, poll_seconds: int) -> list[dic
     if poll_seconds < 10 or poll_seconds > 300:
         raise ValueError("poll_seconds must be 10..300")
     while True:
-        rows = status(spec, commands)
+        try:
+            rows = status(spec, commands)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired,
+                OSError, json.JSONDecodeError):
+            # A control-plane read failure says nothing about the remote controller.
+            # Keep its immutable launch receipt/PID and poll the same process again.
+            time.sleep(poll_seconds)
+            continue
         if all(row["controller_status"] == "complete" and not row["alive"]
                and row["episodes"] == 200 for row in rows):
             save_create_only(Path(spec["round_dir"]) / "terminal.json", {
@@ -382,7 +424,9 @@ def failure_decision(aggregate: dict, spec: dict) -> tuple[dict, dict]:
         "regression_count": len(regressed), "recovery_count": len(recovered),
         "promotion_performed": False, "eligible_for_promotion": False,
         "decision": "manual_review_required",
-        "note": "No automatic promotion, training, retry, best-of-N selection, or next round."}
+        "review_authority": "root_model_review",
+        "note": "Manual review means root/model evaluation review, not a user-confirmation gate. "
+                "No automatic promotion, training, retry, best-of-N selection, or next round."}
     return failures, decision
 
 

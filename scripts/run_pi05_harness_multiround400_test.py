@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -35,10 +36,12 @@ def fixture(root: Path) -> tuple[Path, dict]:
             dump(source / "baseline" / rel, value)
             if key == "libero_goal/3": value = {**value, "pi05_control": {"enabled": True}}
             dump(source / "candidate" / rel, value)
-            catalog.append({"key": key, "instruction": key, "max_steps": 300})
+            catalog.append({"key": key, "suite": suite, "task_index": task,
+                            "instruction": key, "max_steps": target.OFFICIAL_CAPS[suite]})
             for init in range(10):
                 plan.append({"suite": suite, "task_id": task, "init_id": init,
-                    "replicate_id": 0, "joint_task_number": joint, "official_cap": 300})
+                    "replicate_id": 0, "joint_task_number": joint,
+                    "official_cap": target.OFFICIAL_CAPS[suite]})
             joint += 1
     dump(source / "baseline/registry.json", {"schema": 1, "tasks": baseline_tasks})
     dump(source / "candidate/registry.json", {"schema": 1, "tasks": candidate_tasks})
@@ -50,7 +53,8 @@ def fixture(root: Path) -> tuple[Path, dict]:
     (source / "aggregate.py").write_text("# aggregate\n")
     (source / "export.py").write_text("# export\n")
     for worker in range(4):
-        cases = plan[worker::4]
+        cases = [{key: row[key] for key in target.WORKER_CASE_FIELDS}
+                 for row in plan[worker::4]]
         dump(source / f"cases{worker}.json", {"schema": "pi05_harness_cases.v1", "cases": cases})
         common = {"cases": f"cases{worker}.json", "routes": "routes.json", "mode": "harness"}
         dump(source / f"job{worker}.json", {"schema": "pi05_harness_worker.v1", "batches": [
@@ -103,6 +107,48 @@ class MultiRound400Test(unittest.TestCase):
             self.assertTrue(all(len(w["job_sha256"]) == 64 for w in value["workers"]))
             self.assertEqual(value["changed_tasks"], ["libero_goal/3"])
 
+    def test_real_checked_in_candidate400_jobs_and_four_field_cases(self):
+        source = Path(os.environ.get("PI05_MULTIRound400_SOURCE",
+                          Path(__file__).resolve().parents[1])).resolve()
+        required = source / "configs/pi05_harness_candidate400/job_worker0.json"
+        if not required.is_file():
+            self.skipTest("real checked-in candidate400 fixtures are not in this patch-only tree")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spec = {"schema": target.SCHEMA, "round_id": "real-config-integration",
+                "round_dir": str(root / "round"),
+                "canonical": {"repository": "https://github.com/example/openpi.git",
+                    "branch": "feature/candidate", "commit": COMMIT},
+                "candidate_registry": "configs/pi05_harness_candidate400/registry.json",
+                "baseline_registry": "configs/pi05_harness/registry.json",
+                "changed_tasks": ["libero_goal/3", "libero_10/8"],
+                "case_plan": "configs/pi05_harness_candidate400/case_plan.json",
+                "task_catalog": "configs/pi05_harness_candidate400/task_catalog.json",
+                "routes": "configs/pi05_harness/routes_base.json",
+                "aggregate_script": "scripts/aggregate_pi05_harness_candidate400.py",
+                "export_script": "scripts/export_pi05_harness_artifacts.py",
+                "weights": {"base_checkpoint": "/weights/base",
+                    "plugin_checkpoint": "/weights/plugins",
+                    "plugin_manifest_sha256": MANIFEST, "policy_id": "base",
+                    "adapter_sha256": None},
+                "runtime": {"physicalrsi_root": "/code/r69",
+                    "physicalrsi_commit": PHYSICAL, "runtime_root": "/runtime/libero"},
+                "workers": [{"worker_id": i, "host": f"worker{i}", "user": "magiclab",
+                    "control_path": f"/tmp/worker{i}.sock", "checkout": "/code/candidate",
+                    "job": f"configs/pi05_harness_candidate400/job_worker{i}.json",
+                    "output": f"/outputs/round_worker{i}",
+                    "policy_python": "/venv/bin/python", "gpu_id": 0, "port": 18501}
+                    for i in range(4)],
+                "collection": {"collector_worker_id": 0, "relay_dir": str(root / "relay"),
+                    "collection_root": "/outputs/round_collection",
+                    "max_compressed_bytes": 500_000_000}}
+            spec_path = root / "spec.json"; dump(spec_path, spec)
+            value = validate(spec_path, source)
+            self.assertEqual(len(value["workers"]), 4)
+            real_cases = json.loads((source /
+                "configs/pi05_harness_candidate400/cases_worker0.json").read_text())
+            self.assertEqual(set(real_cases["cases"][0]), target.WORKER_CASE_FIELDS)
+
     def test_unchanged_task_must_be_byte_identical(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); source, _ = fixture(root)
@@ -121,6 +167,15 @@ class MultiRound400Test(unittest.TestCase):
                 else: value["cases"][0]["replicate_id"] = 1
                 dump(path, value)
                 with self.assertRaises(ValueError): validate(root / "spec.json", source)
+
+    def test_plan_joint_and_official_cap_are_derived_from_catalog(self):
+        for field in ("joint_task_number", "official_cap"):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); source, _ = fixture(root)
+                path = source / "case_plan.json"; value = json.loads(path.read_text())
+                value["cases"][0][field] += 1; dump(path, value)
+                with self.assertRaisesRegex(ValueError, "disagrees with catalog"):
+                    validate(root / "spec.json", source)
 
     def test_job_overlap_or_candidate_registry_mismatch_rejected(self):
         for mutation in ("overlap", "registry"):
@@ -166,6 +221,23 @@ class MultiRound400Test(unittest.TestCase):
         self.assertFalse(decision["eligible_for_promotion"])
         self.assertFalse(decision["promotion_performed"])
         self.assertEqual(decision["decision"], "manual_review_required")
+        self.assertEqual(decision["review_authority"], "root_model_review")
+
+    def test_wait_repolls_same_launch_after_transient_network_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            round_dir = Path(directory)
+            spec = {"round_dir": str(round_dir)}
+            complete = [{"worker_id": i, "alive": False,
+                         "controller_status": "complete", "episodes": 200}
+                        for i in range(4)]
+            transient = subprocess.CalledProcessError(255, ["ssh"])
+            with mock.patch.object(target, "status", side_effect=[transient, complete]) as status_mock, \
+                    mock.patch.object(target.time, "sleep") as sleep_mock:
+                rows = target.wait_terminal(spec, mock.Mock(), 10)
+            self.assertEqual(rows, complete)
+            self.assertEqual(status_mock.call_count, 2)
+            sleep_mock.assert_called_once_with(10)
+            self.assertTrue((round_dir / "terminal.json").is_file())
 
     def test_create_only_round_artifacts(self):
         with tempfile.TemporaryDirectory() as directory:
