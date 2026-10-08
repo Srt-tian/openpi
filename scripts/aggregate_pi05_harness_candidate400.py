@@ -16,6 +16,8 @@ GOAL={"kind":"response_probe_v1","enabled":True,"lift_z_command":.2,
       "minimum_actual":100}
 LONG={"kind":"closed_dwell_lift_v1","enabled":True,"veto_native_upward_intent":True}
 HEX=set("0123456789abcdef")
+NOISE_PROTOCOL="paired_episode_plus_call_1000003_numpy_pcg64_noise_10x32_f32_v1"
+DEFAULT_ROUTES=Path(__file__).resolve().parents[1]/"configs/pi05_harness/routes_base.json"
 
 def sha256(path:Path)->str:
     h=hashlib.sha256()
@@ -25,10 +27,14 @@ def sha256(path:Path)->str:
 
 def valid_hash(value):return isinstance(value,str) and len(value)==64 and set(value)<=HEX
 
-def valid_identity(value):
-    return (isinstance(value,dict) and value.get("policy_id")=="base"
-        and value.get("base_graph")=="original_pi05_libero"
-        and value.get("adapter_sha256") is None and valid_hash(value.get("checkpoint_sha256")))
+def expected_identity(routes:Path):
+    document=json.loads(routes.read_text());base=document.get("identities",{}).get("base")
+    if (not isinstance(base,dict) or base.get("base_graph")!="original_pi05_libero"
+            or base.get("adapter_sha256") is not None or not valid_hash(base.get("checkpoint_sha256"))):
+        raise ValueError("frozen base route identity invalid")
+    return {**base,"policy_id":"base","policy_seed_protocol":NOISE_PROTOCOL}
+
+def valid_identity(value,expected):return isinstance(value,dict) and value==expected
 
 def load_receipt(path:Path,root:Path):
     value=json.loads(path.read_text())
@@ -157,8 +163,9 @@ def summarize(rows):
     return {"pairs":len(rows),"control_successes":sum(r["control_success"] for r in rows),
             "candidate_successes":sum(r["candidate_success"] for r in rows),"paired_outcomes":dict(outcomes)}
 
-def aggregate(roots,case_plan,catalog,artifact_receipts=None):
+def aggregate(roots,case_plan,catalog,artifact_receipts=None,routes=DEFAULT_ROUTES):
     expected=load_plan(case_plan,catalog); episodes={}; structural=[]; summaries=0;manifest_identities=[]
+    frozen_identity=expected_identity(Path(routes))
     receipt_maps={};receipt_used={}
     for path in artifact_receipts or []:
         value=json.loads(path.read_text());name=value.get("worker_output_name")
@@ -176,7 +183,7 @@ def aggregate(roots,case_plan,catalog,artifact_receipts=None):
             summaries+=1;which=arm(sp.parent.name);summary=json.loads(sp.read_text());manifest=json.loads((sp.parent/"manifest.json").read_text());identity=manifest.get("verified_service_identity")
             manifest_identities.append(identity)
             if (summary.get("mode")!="harness" or summary.get("complete") is not True or summary.get("errors")!=0 or summary.get("planned")!=summary.get("completed")
-                    or manifest.get("fixed_policy_id")!="base" or not valid_identity(identity)):
+                    or manifest.get("fixed_policy_id")!="base" or not valid_identity(identity,frozen_identity)):
                 structural.append(f"{sp}: summary/identity invalid")
             for row in summary.get("cases",[]):
                 try:key=case_key(row,expected)
@@ -198,7 +205,7 @@ def aggregate(roots,case_plan,catalog,artifact_receipts=None):
                 episodes[slot]={"value":value,"identity":identity,"video":video,"flags":flags}
     if summaries!=8:structural.append("expected eight summaries")
     if (not manifest_identities or any(item!=manifest_identities[0] for item in manifest_identities)
-            or not valid_identity(manifest_identities[0])):
+            or not valid_identity(manifest_identities[0],frozen_identity)):
         structural.append("verified service identities differ across batches/workers")
     for name,artifacts in receipt_maps.items():
         if receipt_used.get(name,set())!=set(artifacts):structural.append(f"{name}: artifact receipt exact coverage mismatch")
@@ -208,7 +215,7 @@ def aggregate(roots,case_plan,catalog,artifact_receipts=None):
     for key in sorted(expected):
         if any((a,key) not in episodes for a in ARMS):continue
         c,a=episodes["control",key],episodes["candidate",key];cv,av=c["value"],a["value"]
-        ci,ai=initial_receipt(cv),initial_receipt(av);noise_ok=valid_initial(ci) and valid_initial(ai) and ci==ai
+        ci,ai=initial_receipt(cv),initial_receipt(av);obs_ok=valid_initial(ci) and valid_initial(ai) and ci==ai
         identity_ok=c["identity"]==a["identity"]
         seed_ok=(cv["case"]["policy_seed"],cv["case"]["ambient_seed"])==(av["case"]["policy_seed"],av["case"]["ambient_seed"])
         if not identity_ok:structural.append(f"{key}: paired service identity differs")
@@ -218,14 +225,17 @@ def aggregate(roots,case_plan,catalog,artifact_receipts=None):
         label="both" if cs and vs else "recovered" if vs else "regressed" if cs else "neither"
         pairs.append({"suite":key[0],"task_id":key[1],"init_id":key[2],"control_success":cs,
             "candidate_success":vs,"outcome":label,"triggered":triggered,
-            "source_identity_equal":identity_ok,"paired_seeds_equal":seed_ok,"initial_noise_equal":noise_ok,
+            "source_identity_equal":identity_ok,"paired_seeds_equal":seed_ok,
+            "initial_observation_hashes_equal":obs_ok,
+            "paired_noise_protocol_and_seeds_valid":seed_ok and identity_ok
+                and c["identity"].get("policy_seed_protocol")==NOISE_PROTOCOL,
             "cap_valid":c["flags"]["cap_valid"] and a["flags"]["cap_valid"],
             "harness_valid":c["flags"]["harness_valid"] and a["flags"]["harness_valid"],
             "source_receipts_valid":c["flags"]["source_valid"] and a["flags"]["source_valid"],
             "video_status":{"control":{**c["video"],"valid":c["flags"]["video_valid"]},
                             "candidate":{**a["video"],"valid":a["flags"]["video_valid"]}},
-            "causal_gate_pass":causal_ok and identity_ok and seed_ok and noise_ok,
-            "causal_confounds":confounds + ([] if noise_ok else ["initial observation/noise differs"])})
+            "causal_gate_pass":causal_ok and identity_ok and seed_ok and obs_ok,
+            "causal_confounds":confounds + ([] if obs_ok else ["initial observation hashes differ"])})
     score_complete=not structural and len(pairs)==400
     exact=score_complete and all(x["causal_gate_pass"] for x in pairs)
     by_suite={s:summarize([x for x in pairs if x["suite"]==s]) for s in SUITES}
@@ -236,6 +246,6 @@ def aggregate(roots,case_plan,catalog,artifact_receipts=None):
         "causal_flags":{"passing":sum(x["causal_gate_pass"] for x in pairs),"failing":sum(not x["causal_gate_pass"] for x in pairs)},"pairs":pairs}
 
 if __name__=="__main__":
-    p=argparse.ArgumentParser();p.add_argument("--worker-output",action="append",type=Path,required=True);p.add_argument("--artifact-receipt",action="append",type=Path);p.add_argument("--case-plan",type=Path,required=True);p.add_argument("--task-catalog",type=Path,required=True);p.add_argument("--output",type=Path,required=True);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument("--worker-output",action="append",type=Path,required=True);p.add_argument("--artifact-receipt",action="append",type=Path);p.add_argument("--case-plan",type=Path,required=True);p.add_argument("--task-catalog",type=Path,required=True);p.add_argument("--routes",type=Path,default=DEFAULT_ROUTES);p.add_argument("--output",type=Path,required=True);a=p.parse_args()
     if a.output.exists():raise FileExistsError("output is create-only")
-    result=aggregate(a.worker_output,a.case_plan,a.task_catalog,a.artifact_receipt);a.output.parent.mkdir(parents=True,exist_ok=True);a.output.write_text(json.dumps(result,indent=2,sort_keys=True)+"\n");raise SystemExit(0 if result["score_complete"] else 1)
+    result=aggregate(a.worker_output,a.case_plan,a.task_catalog,a.artifact_receipt,a.routes);a.output.parent.mkdir(parents=True,exist_ok=True);a.output.write_text(json.dumps(result,indent=2,sort_keys=True)+"\n");raise SystemExit(0 if result["score_complete"] else 1)

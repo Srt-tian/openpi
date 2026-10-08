@@ -5,8 +5,9 @@ import aggregate_pi05_harness_candidate400 as target
 
 class Candidate400AggregateTest(unittest.TestCase):
     def _synthetic_800(self,root):
+        root.mkdir(parents=True,exist_ok=True)
         catalog=json.loads((Path(__file__).resolve().parents[1]/"configs/pi05_harness/task_catalog.json").read_text());rows={r["key"]:r for r in catalog["tasks"]}
-        catalog_path=root/"catalog.json";catalog_path.write_text(json.dumps(catalog));plan=[];identity={"policy_id":"base","base_graph":"original_pi05_libero","adapter_sha256":None,"checkpoint_sha256":"c"*64}
+        catalog_path=root/"catalog.json";catalog_path.write_text(json.dumps(catalog));plan=[];identity={"policy_id":"base","base_graph":"original_pi05_libero","adapter_sha256":None,"checkpoint_sha256":"a04f1a310cb0ed2517716f40d9e8881990b63beae0e3f679c4822aef8a9552e6","policy_seed_protocol":target.NOISE_PROTOCOL}
         assignments=[[] for _ in range(4)]
         for suite_index,suite in enumerate(target.SUITES):
             for task in range(10):
@@ -45,10 +46,23 @@ class Candidate400AggregateTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);roots,receipts,plan,catalog=self._synthetic_800(root)
             result=target.aggregate(roots,plan,catalog,receipts);self.assertTrue(result["score_complete"]);self.assertTrue(result["exact_prefix_attribution_complete"]);self.assertEqual(result["coverage"]["episodes"],800)
+            self.assertTrue(result["pairs"][0]["initial_observation_hashes_equal"])
+            self.assertTrue(result["pairs"][0]["paired_noise_protocol_and_seeds_valid"])
+            self.assertNotIn("initial_noise_equal",result["pairs"][0])
             receipt=json.loads(receipts[0].read_text());removed=receipt["artifacts"].pop();receipts[0].write_text(json.dumps(receipt));self.assertFalse(target.aggregate(roots,plan,catalog,receipts)["score_complete"])
             receipt["artifacts"].append(dict(removed,episode_sha256="d"*64));receipts[0].write_text(json.dumps(receipt));self.assertFalse(target.aggregate(roots,plan,catalog,receipts)["score_complete"])
             receipt["artifacts"][-1]=removed;receipts[0].write_text(json.dumps(receipt));manifest=next(roots[0].glob("*/manifest.json"));bad=json.loads(manifest.read_text());bad["verified_service_identity"]["checkpoint_sha256"]="d"*64;manifest.write_text(json.dumps(bad));self.assertFalse(target.aggregate(roots,plan,catalog,receipts)["score_complete"])
-            manifest.write_text(json.dumps({"fixed_policy_id":"base","verified_service_identity":{"policy_id":"base","base_graph":"original_pi05_libero","adapter_sha256":None,"checkpoint_sha256":"c"*64}}));summary=next(roots[0].glob("*/summary.json"));bad=json.loads(summary.read_text());bad["cases"][0]["policy_seed"]+=1;summary.write_text(json.dumps(bad));self.assertFalse(target.aggregate(roots,plan,catalog,receipts)["score_complete"])
+            good_identity={"policy_id":"base","base_graph":"original_pi05_libero","adapter_sha256":None,"checkpoint_sha256":"a04f1a310cb0ed2517716f40d9e8881990b63beae0e3f679c4822aef8a9552e6","policy_seed_protocol":target.NOISE_PROTOCOL}
+            manifest.write_text(json.dumps({"fixed_policy_id":"base","verified_service_identity":good_identity}));summary=next(roots[0].glob("*/summary.json"));bad=json.loads(summary.read_text());bad["cases"][0]["policy_seed"]+=1;summary.write_text(json.dumps(bad));self.assertFalse(target.aggregate(roots,plan,catalog,receipts)["score_complete"])
+
+    def test_globally_consistent_wrong_hash_and_noise_protocol_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            for field,value in (("checkpoint_sha256","d"*64),("policy_seed_protocol","wrong")):
+                case_root=root/field;roots,receipts,plan,catalog=self._synthetic_800(case_root)
+                for manifest in case_root.glob("worker*/*/manifest.json"):
+                    item=json.loads(manifest.read_text());item["verified_service_identity"][field]=value;manifest.write_text(json.dumps(item))
+                self.assertFalse(target.aggregate(roots,plan,catalog,receipts)["score_complete"])
 
     def test_case_plan_is_exact_and_caps_are_authoritative(self):
         catalog=json.loads((Path(__file__).resolve().parents[1]/"configs/pi05_harness/task_catalog.json").read_text())
