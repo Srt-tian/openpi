@@ -41,6 +41,59 @@ build_runner_argv() {
   fi
 }
 
+validate_commit_override() {
+  case "${PI05_ALLOW_UNPUBLISHED_COMMIT-0}" in
+    0)
+      PI05_EXECUTION_COMMIT_POLICY=canonical_upstream_required
+      PI05_CANONICAL_PUBLICATION_VERIFIED=true
+      ;;
+    1)
+      PI05_EXECUTION_COMMIT_POLICY=user_approved_local_commit
+      PI05_CANONICAL_PUBLICATION_VERIFIED=false
+      ;;
+    *)
+      echo "fatal: PI05_ALLOW_UNPUBLISHED_COMMIT must be exactly 0 or 1" >&2
+      return 2
+      ;;
+  esac
+}
+
+verify_git_checkout() {
+  local repo="$1"
+  local expected_commit="$2"
+  local actual_commit upstream upstream_commit
+  validate_commit_override
+  actual_commit="$(git -C "${repo}" rev-parse HEAD)" || return 2
+  if [[ "${actual_commit}" != "${expected_commit}" ]]; then
+    echo "fatal: REPO_DIR HEAD does not match EXPECTED_COMMIT" >&2
+    return 2
+  fi
+  git -C "${repo}" diff --quiet --ignore-submodules -- || {
+    echo "fatal: REPO_DIR is not clean" >&2
+    return 2
+  }
+  git -C "${repo}" diff --cached --quiet --ignore-submodules -- || {
+    echo "fatal: REPO_DIR is not clean" >&2
+    return 2
+  }
+  if [[ -n "$(git -C "${repo}" status --porcelain --untracked-files=all)" ]]; then
+    echo "fatal: REPO_DIR is not clean" >&2
+    return 2
+  fi
+  if [[ "${PI05_ALLOW_UNPUBLISHED_COMMIT-0}" == 1 ]]; then
+    return 0
+  fi
+  upstream="$(git -C "${repo}" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)" || {
+    echo "fatal: branch has no upstream" >&2
+    return 2
+  }
+  upstream_commit="$(git -C "${repo}" rev-parse "${upstream}")" || return 2
+  if [[ "${upstream_commit}" != "${expected_commit}" ]]; then
+    echo "fatal: upstream commit does not match EXPECTED_COMMIT" >&2
+    return 2
+  fi
+}
+
 # Sourcing exposes only the argument helpers used by dependency-free regression
 # tests.  Executing the launcher still runs every Git and environment gate below.
 if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
@@ -51,19 +104,7 @@ fi
 : "${EXPECTED_COMMIT:?set EXPECTED_COMMIT to the exact approved commit}"
 : "${OPENPI_DATA_HOME:?set OPENPI_DATA_HOME to the offline asset root}"
 
-if [[ "$(git -C "${REPO_DIR}" rev-parse HEAD)" != "${EXPECTED_COMMIT}" ]]; then
-  echo "fatal: REPO_DIR HEAD does not match EXPECTED_COMMIT" >&2; exit 2
-fi
-git -C "${REPO_DIR}" diff --quiet --ignore-submodules --
-git -C "${REPO_DIR}" diff --cached --quiet --ignore-submodules --
-if [[ -n "$(git -C "${REPO_DIR}" status --porcelain --untracked-files=normal)" ]]; then
-  echo "fatal: REPO_DIR is not clean" >&2; exit 2
-fi
-upstream="$(git -C "${REPO_DIR}" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}')"
-[[ -n "${upstream}" ]] || { echo "fatal: branch has no upstream" >&2; exit 2; }
-if [[ "$(git -C "${REPO_DIR}" rev-parse "${upstream}")" != "${EXPECTED_COMMIT}" ]]; then
-  echo "fatal: upstream commit does not match EXPECTED_COMMIT" >&2; exit 2
-fi
+verify_git_checkout "${REPO_DIR}" "${EXPECTED_COMMIT}"
 
 python_bin=/.venv/bin/python
 [[ -x "${python_bin}" ]] || { echo "fatal: ${python_bin} missing" >&2; exit 2; }

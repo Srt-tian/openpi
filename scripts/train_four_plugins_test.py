@@ -1,14 +1,18 @@
 """CPU-only regressions for the four-plugin entrypoint."""
 
 import itertools
+import os
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 import numpy as np
 from train_four_plugins import (
     DeterministicBatchSampler,
+    execution_commit_provenance,
     numpy_collate,
     parse_args,
     resolve_loss_status,
@@ -41,6 +45,29 @@ class _FakeRolloutStore:
 
 
 class RunnerTests(unittest.TestCase):
+    def test_execution_commit_provenance_is_strict_and_explicit(self):
+        with mock.patch.dict(os.environ, {"PI05_ALLOW_UNPUBLISHED_COMMIT": "0"}):
+            self.assertEqual(
+                execution_commit_provenance(),
+                {
+                    "execution_commit_policy": "canonical_upstream_required",
+                    "canonical_publication_verified": True,
+                },
+            )
+        with mock.patch.dict(os.environ, {"PI05_ALLOW_UNPUBLISHED_COMMIT": "1"}):
+            self.assertEqual(
+                execution_commit_provenance(),
+                {
+                    "execution_commit_policy": "user_approved_local_commit",
+                    "canonical_publication_verified": False,
+                },
+            )
+        for invalid in ("", "true", "yes", "2", "01"):
+            with self.subTest(invalid=invalid), mock.patch.dict(
+                os.environ, {"PI05_ALLOW_UNPUBLISHED_COMMIT": invalid}
+            ), self.assertRaisesRegex(ValueError, "exactly 0 or 1"):
+                execution_commit_provenance()
+
     def test_explicit_fm_only_zeros_auxiliary_weights_and_records_selection(self):
         args = parse_args(["--fm-only", "--handoff-weight", "0.7", "--call-weight", "0.9"])
         validate_loss_args(args)
@@ -211,6 +238,96 @@ printf '<%s>\\n' "${PI05_RUNNER_ARGS[@]}"
                 result = self.run_helper(*args)
                 self.assertEqual(result.returncode, 2)
                 self.assertIn(message, result.stderr)
+
+
+class LauncherGitGateTests(unittest.TestCase):
+    launcher = Path(__file__).with_name("launch_pi05_libero_test.sh")
+    helper = """
+source "$1"
+verify_git_checkout "$2" "$3"
+printf '%s|%s\n' "${PI05_EXECUTION_COMMIT_POLICY}" "${PI05_CANONICAL_PUBLICATION_VERIFIED}"
+"""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.repo = Path(self.temp_dir.name) / "repo"
+        self.repo.mkdir()
+        self.git("init", "-q")
+        self.git("config", "user.name", "Stage A Test")
+        self.git("config", "user.email", "stage-a-test@example.invalid")
+        (self.repo / "tracked.txt").write_text("clean\n", encoding="utf-8")
+        self.git("add", "tracked.txt")
+        self.git("commit", "-qm", "fixture commit")
+        self.head = self.git("rev-parse", "HEAD").stdout.strip()
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def git(self, *args):
+        return subprocess.run(
+            ["git", "-C", str(self.repo), *args],
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+    def run_gate(self, override, expected=None):
+        env = os.environ.copy()
+        if override is None:
+            env.pop("PI05_ALLOW_UNPUBLISHED_COMMIT", None)
+        else:
+            env["PI05_ALLOW_UNPUBLISHED_COMMIT"] = override
+        return subprocess.run(
+            [
+                "bash", "-c", self.helper, "git-gate-test", str(self.launcher),
+                str(self.repo), expected or self.head,
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+        )
+
+    def test_no_upstream_is_rejected_by_default_but_explicit_one_allows_it(self):
+        default = self.run_gate(None)
+        self.assertEqual(default.returncode, 2)
+        self.assertIn("no upstream", default.stderr)
+
+        approved = self.run_gate("1")
+        self.assertEqual(approved.returncode, 0, approved.stderr)
+        self.assertEqual(approved.stdout.strip(), "user_approved_local_commit|false")
+
+    def test_override_accepts_only_literal_zero_or_one(self):
+        for invalid in ("", "true", "yes", "2", "01"):
+            with self.subTest(invalid=invalid):
+                result = self.run_gate(invalid)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("exactly 0 or 1", result.stderr)
+
+    def test_default_requires_upstream_at_the_exact_expected_commit(self):
+        self.git("branch", "published", self.head)
+        self.git("branch", "--set-upstream-to=published")
+        canonical = self.run_gate("0")
+        self.assertEqual(canonical.returncode, 0, canonical.stderr)
+        self.assertEqual(canonical.stdout.strip(), "canonical_upstream_required|true")
+
+        (self.repo / "tracked.txt").write_text("new commit\n", encoding="utf-8")
+        self.git("add", "tracked.txt")
+        self.git("commit", "-qm", "local commit beyond upstream")
+        new_head = self.git("rev-parse", "HEAD").stdout.strip()
+        mismatched = self.run_gate("0", expected=new_head)
+        self.assertEqual(mismatched.returncode, 2)
+        self.assertIn("upstream commit does not match", mismatched.stderr)
+
+    def test_wrong_head_and_dirty_tree_are_rejected_even_when_approved(self):
+        wrong_head = self.run_gate("1", expected="0" * 40)
+        self.assertEqual(wrong_head.returncode, 2)
+        self.assertIn("HEAD does not match", wrong_head.stderr)
+
+        (self.repo / "tracked.txt").write_text("dirty\n", encoding="utf-8")
+        dirty = self.run_gate("1")
+        self.assertEqual(dirty.returncode, 2)
+        self.assertIn("not clean", dirty.stderr)
 
 
 if __name__ == "__main__":

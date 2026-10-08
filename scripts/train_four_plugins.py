@@ -470,10 +470,26 @@ def current_git_sha() -> str:
     return actual
 
 
+def execution_commit_provenance() -> dict[str, Any]:
+    value = os.environ.get("PI05_ALLOW_UNPUBLISHED_COMMIT", "0")
+    if value == "0":
+        return {
+            "execution_commit_policy": "canonical_upstream_required",
+            "canonical_publication_verified": True,
+        }
+    if value == "1":
+        return {
+            "execution_commit_policy": "user_approved_local_commit",
+            "canonical_publication_verified": False,
+        }
+    raise ValueError("PI05_ALLOW_UNPUBLISHED_COMMIT must be exactly 0 or 1")
+
+
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     validate_loss_args(args)
+    commit_provenance = execution_commit_provenance()
     if args.resume != bool(args.from_checkpoint):
         raise ValueError("--resume and --from-checkpoint must be specified together")
     rollout_store = None
@@ -552,6 +568,7 @@ def main() -> None:
     manifest_core = {
         "schema": 1, "run_name": "PI05-libero-test", "project": "physicalrsi",
         "git_sha": git_sha, "seed": args.seed,
+        **commit_provenance,
         "suites": list(SUITES), "total_updates": TOTAL_UPDATES, "updates_per_suite": UPDATES_PER_SUITE,
         "global_batch_size": args.batch_size, "fsdp_devices": 8, "lora_rank": 32, "ema": False,
         "optimizer": {"name": "adamw", "b1": .9, "b2": .95, "eps": 1e-8,
