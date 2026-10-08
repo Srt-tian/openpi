@@ -107,7 +107,8 @@ class CliValidationTest(unittest.TestCase):
             {"kind": "response_probe_v1", "enabled": True},
             {"kind": "response_probe_v1", "enabled": True,
              "lift_z_command": .2, "max_lift_steps": 20,
-             "lift_target_m": .025, "native_reserve_steps": 80},
+             "lift_target_m": .025, "native_reserve_steps": 80,
+             "minimum_actual": 100},
         ):
             with self.subTest(control=control), tempfile.TemporaryDirectory() as directory:
                 registry = self.write_control_registry(directory, {"pi05_control": control})
@@ -119,6 +120,9 @@ class CliValidationTest(unittest.TestCase):
             {"kind": "response_probe_v1", "enabled": True, "max_lift_steps": True},
             {"kind": "response_probe_v1", "enabled": True, "lift_target_m": .026},
             {"kind": "response_probe_v1", "enabled": True, "native_reserve_steps": 81},
+            {"kind": "response_probe_v1", "enabled": True, "minimum_actual": True},
+            {"kind": "response_probe_v1", "enabled": True, "minimum_actual": 99.0},
+            {"kind": "response_probe_v1", "enabled": True, "minimum_actual": 121},
         ]
         for control in invalid:
             with self.subTest(control=control), tempfile.TemporaryDirectory() as directory:

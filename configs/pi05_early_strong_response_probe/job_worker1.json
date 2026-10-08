@@ -1,0 +1,19 @@
+{
+  "batches": [
+    {
+      "cases": "configs/pi05_early_strong_response_probe/cases_worker1.json",
+      "mode": "harness",
+      "name": "worker1_control",
+      "registry": "configs/pi05_harness/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    },
+    {
+      "cases": "configs/pi05_early_strong_response_probe/cases_worker1.json",
+      "mode": "harness",
+      "name": "worker1_probe",
+      "registry": "configs/pi05_early_strong_response_probe/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    }
+  ],
+  "schema": "pi05_harness_worker.v1"
+}

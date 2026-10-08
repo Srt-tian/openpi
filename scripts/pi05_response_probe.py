@@ -26,7 +26,8 @@ CONTEXT_KEYS = frozenset({
     "remaining_stage", "stage_index",
 })
 PARAMETER_DEFAULTS = {"lift_z_command": .05, "max_lift_steps": 8,
-                      "lift_target_m": .02, "native_reserve_steps": 20}
+                      "lift_target_m": .02, "native_reserve_steps": 20,
+                      "minimum_actual": MIN_ACTUAL}
 
 
 def validated_parameters(values: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -41,7 +42,8 @@ def validated_parameters(values: Mapping[str, Any] | None = None) -> dict[str, A
             raise ValueError(f"{name} must be finite and in (0, {upper}]")
         result[name] = float(value)
     for name, lower, upper in (("max_lift_steps", 1, 20),
-                               ("native_reserve_steps", 20, 80)):
+                               ("native_reserve_steps", 20, 80),
+                               ("minimum_actual", 60, 120)):
         value = result[name]
         if type(value) is not int or not lower <= value <= upper:
             raise ValueError(f"{name} must be an integer in [{lower}, {upper}]")
@@ -60,11 +62,13 @@ def open_downward_stall_guard(
     state8: Any,
     context: Mapping[str, Any],
     minimum_remaining: int,
+    *,
+    minimum_actual: int = MIN_ACTUAL,
 ) -> dict[str, Any] | None:
     """Pure open/downward-stall predicate over executed action/post-state rows."""
     state = np.asarray(state8, dtype=np.float64)
     if (state.shape != (STATE_DIM,) or not np.isfinite(state).all()
-            or context.get("actual_executed", -1) < MIN_ACTUAL
+            or context.get("actual_executed", -1) < minimum_actual
             or min(context.get("remaining_episode", -1),
                    context.get("remaining_stage", -1)) < minimum_remaining
             or len(native_rows) != WINDOW):
@@ -125,15 +129,17 @@ class Pi05ResponseProbeSkill:
 
     def __init__(self, delegate: Any, *, lift_z_command: float = .05,
                  max_lift_steps: int = 8, lift_target_m: float = .02,
-                 native_reserve_steps: int = 20):
+                 native_reserve_steps: int = 20, minimum_actual: int = MIN_ACTUAL):
         parameters = validated_parameters({"lift_z_command": lift_z_command,
             "max_lift_steps": max_lift_steps, "lift_target_m": lift_target_m,
-            "native_reserve_steps": native_reserve_steps})
+            "native_reserve_steps": native_reserve_steps,
+            "minimum_actual": minimum_actual})
         self.delegate = delegate
         self.lift_z_command = parameters["lift_z_command"]
         self.max_lift_steps = parameters["max_lift_steps"]
         self.lift_target_m = parameters["lift_target_m"]
         self.native_reserve_steps = parameters["native_reserve_steps"]
+        self.minimum_actual = parameters["minimum_actual"]
         self.max_manual_actions = 4 + max_lift_steps + 2
         self.trigger_remaining = GRACE + self.max_manual_actions + native_reserve_steps
         self.provenance: dict[str, Any] = {}
@@ -202,7 +208,8 @@ class Pi05ResponseProbeSkill:
         if self._context is None or self._state is None:
             return None
         return open_downward_stall_guard(
-            self._native, self._state, self._context, minimum_remaining
+            self._native, self._state, self._context, minimum_remaining,
+            minimum_actual=self.minimum_actual,
         )
 
     def _record_emission(self, actions: np.ndarray, kind: str):
@@ -343,6 +350,7 @@ class Pi05ResponseProbeSkill:
                     "max_lift_steps": self.max_lift_steps,
                     "lift_target_m": self.lift_target_m,
                     "native_reserve_steps": self.native_reserve_steps,
+                    "minimum_actual": self.minimum_actual,
                     "max_manual_actions": self.max_manual_actions,
                     "trigger_remaining_steps": self.trigger_remaining},
                 "mechanical_proxy_only": True, "grasp_or_task_success_certificate": False,

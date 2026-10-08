@@ -34,7 +34,8 @@ class ResponseProbeAggregateTest(unittest.TestCase):
         provenance = probe["runner"]["report"]["skills"]["pi05"]["provenance"]
         provenance["parameters"] = {"lift_z_command": .2, "max_lift_steps": 20,
             "lift_target_m": .025, "native_reserve_steps": 80,
-            "max_manual_actions": 26, "trigger_remaining_steps": 111}
+            "minimum_actual": 100, "max_manual_actions": 26,
+            "trigger_remaining_steps": 111}
         result = target.causal_pair(control, probe)
         self.assertTrue(result["causal_gate_pass"])
         self.assertEqual(result["response_probe_parameters"], provenance["parameters"])
@@ -43,11 +44,22 @@ class ResponseProbeAggregateTest(unittest.TestCase):
         control, probe = episode(False), episode(True)
         probe["runner"]["report"]["skills"]["pi05"]["provenance"]["parameters"] = {
             "lift_z_command": .2, "max_lift_steps": 20, "lift_target_m": .025,
-            "native_reserve_steps": 20, "max_manual_actions": 14,
+            "native_reserve_steps": 20, "minimum_actual": 100,
+            "max_manual_actions": 14,
             "trigger_remaining_steps": 39}
         result = target.causal_pair(control, probe)
         self.assertFalse(result["causal_gate_pass"])
         self.assertIn("invalid response-probe provenance parameters", result["confounds"])
+
+    def test_legacy_structured_parameters_default_minimum_actual_120(self):
+        control, probe = episode(False), episode(True)
+        provenance = probe["runner"]["report"]["skills"]["pi05"]["provenance"]
+        provenance["parameters"] = {"lift_z_command": .2, "max_lift_steps": 20,
+            "lift_target_m": .025, "native_reserve_steps": 80,
+            "max_manual_actions": 26, "trigger_remaining_steps": 111}
+        result = target.causal_pair(control, probe)
+        self.assertTrue(result["causal_gate_pass"])
+        self.assertEqual(result["response_probe_parameters"]["minimum_actual"], 120)
 
     def test_triggered_exact_prefix_passes(self):
         control, probe = episode(False), episode(True)

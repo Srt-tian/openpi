@@ -43,10 +43,13 @@ def manual_info(episode: dict) -> tuple[int | None, int, list[str], dict, list[s
     if parameters is None:  # Backward-compatible audit for the frozen original probe.
         parameters = {"lift_z_command": .05, "max_lift_steps": 8,
                       "lift_target_m": .02, "native_reserve_steps": 20,
-                      "max_manual_actions": 14, "trigger_remaining_steps": 39}
+                      "minimum_actual": 120, "max_manual_actions": 14,
+                      "trigger_remaining_steps": 39}
+    elif isinstance(parameters, dict) and "minimum_actual" not in parameters:
+        parameters = {**parameters, "minimum_actual": 120}
     expected_keys = {"lift_z_command", "max_lift_steps", "lift_target_m",
                      "native_reserve_steps", "max_manual_actions",
-                     "trigger_remaining_steps"}
+                     "trigger_remaining_steps", "minimum_actual"}
     valid_parameters = (isinstance(parameters, dict) and set(parameters) == expected_keys
         and type(parameters["lift_z_command"]) in (int, float)
         and math.isfinite(parameters["lift_z_command"])
@@ -58,6 +61,8 @@ def manual_info(episode: dict) -> tuple[int | None, int, list[str], dict, list[s
         and 0 < parameters["lift_target_m"] <= .025
         and type(parameters["native_reserve_steps"]) is int
         and 20 <= parameters["native_reserve_steps"] <= 80
+        and type(parameters["minimum_actual"]) is int
+        and 60 <= parameters["minimum_actual"] <= 120
         and parameters["max_manual_actions"] == 4 + parameters["max_lift_steps"] + 2
         and parameters["trigger_remaining_steps"] == 5 + parameters["max_manual_actions"]
             + parameters["native_reserve_steps"])

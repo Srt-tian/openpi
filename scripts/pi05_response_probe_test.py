@@ -88,12 +88,13 @@ class ResponseProbeTest(unittest.TestCase):
     def test_missing_parameters_preserve_defaults_and_invalid_values_fail(self):
         skill = probe.Pi05ResponseProbeSkill(Delegate())
         self.assertEqual((skill.lift_z_command, skill.max_lift_steps,
-                          skill.lift_target_m, skill.native_reserve_steps),
-                         (.05, 8, .02, 20))
+                          skill.lift_target_m, skill.native_reserve_steps,
+                          skill.minimum_actual), (.05, 8, .02, 20, 120))
         invalid = ({"lift_z_command": 0}, {"lift_z_command": .2001},
                    {"max_lift_steps": True}, {"max_lift_steps": 21},
                    {"lift_target_m": .026}, {"native_reserve_steps": 19},
-                   {"native_reserve_steps": 81})
+                   {"native_reserve_steps": 81}, {"minimum_actual": True},
+                   {"minimum_actual": 59}, {"minimum_actual": 121})
         for kwargs in invalid:
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
                 probe.Pi05ResponseProbeSkill(Delegate(), **kwargs)
@@ -141,6 +142,24 @@ class ResponseProbeTest(unittest.TestCase):
         self.assertEqual(exact.act(111).shape, (5, 7))
         self.assertTrue(exact.skill._attempted)
 
+    def test_minimum_actual_100_waits_then_grace_and_rechecks(self):
+        driver = Driver(probe.Pi05ResponseProbeSkill(
+            Delegate(), lift_z_command=.2, max_lift_steps=20,
+            lift_target_m=.025, native_reserve_steps=80, minimum_actual=100))
+        driver.actual = 70
+        for _ in range(5):
+            driver.execute(driver.act(200))
+        self.assertEqual(driver.actual, 95)
+        self.assertFalse(driver.skill._attempted)
+        driver.execute(driver.act(200))
+        self.assertEqual(driver.actual, 100)
+        grace = driver.act(200)
+        self.assertTrue(driver.skill._attempted)
+        self.assertEqual(grace.shape, (5, 7))
+        driver.execute(grace)
+        manual = driver.act(195)
+        np.testing.assert_array_equal(manual[0], [0, 0, 0, 0, 0, 0, 1])
+
     def test_strong_manual_emission_truncation_and_parameters_are_provenant(self):
         driver = self.enter_strong_lift()
         lift = driver.act(102)
@@ -154,6 +173,7 @@ class ResponseProbeTest(unittest.TestCase):
         self.assertEqual(driver.skill.provenance["parameters"], {
             "lift_z_command": .2, "max_lift_steps": 20,
             "lift_target_m": .025, "native_reserve_steps": 80,
+            "minimum_actual": 120,
             "max_manual_actions": 26, "trigger_remaining_steps": 111})
 
     def test_guard_false_real_runner_matches_native_actions_and_seeds(self):
