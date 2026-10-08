@@ -13,5 +13,10 @@ def test_fixed_protocol_and_resumable_balanced_sampler():
  assert next(iter(a))==next(iter(b)) and len(next(iter(a)))==40
 
 def test_cli_requires_output_and_fixed_defaults(tmp_path):
- args=target.parse_args(["--output-dir",str(tmp_path)])
+ args=target.parse_args(["--output-dir",str(tmp_path),"--base-params-sha256","a"*64])
  assert args.batch_size==40 and args.seed==42 and not args.preflight_only
+
+def test_parameter_content_hash_binds_names_sizes_and_bytes(tmp_path):
+ (tmp_path/"a").write_bytes(b"one");(tmp_path/"b").write_bytes(b"two")
+ first=target.params_content_hash(tmp_path);(tmp_path/"b").write_bytes(b"too")
+ assert first!=target.params_content_hash(tmp_path)

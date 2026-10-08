@@ -18,6 +18,7 @@ def parse_args(argv=None):
     p=argparse.ArgumentParser();p.add_argument("--base-checkpoint",type=Path,default=legacy.DEFAULT_BASE)
     p.add_argument("--data-root",type=Path,default=legacy.DEFAULT_DATA);p.add_argument("--output-dir",type=Path,required=True)
     p.add_argument("--preflight-only",action="store_true");p.add_argument("--resume",action="store_true");p.add_argument("--from-checkpoint",type=Path)
+    p.add_argument("--base-params-sha256",required=True,help="approved aggregate content digest for all params files")
     p.add_argument("--seed",type=int,default=SEED);p.add_argument("--batch-size",type=int,default=BATCH_SIZE);p.add_argument("--num-workers",type=int,default=2)
     return p.parse_args(argv)
 
@@ -63,13 +64,27 @@ def batch_parts(batch):
 
 def canonical_hash(value):return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(",",":"),default=str).encode()).hexdigest()
 
+def params_content_hash(root: Path):
+    files=sorted(path for path in root.rglob("*") if path.is_file())
+    if not files:raise FileNotFoundError(f"no parameter files under {root}")
+    records=[]
+    for path in files:
+        content=hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda:stream.read(8*1024*1024),b""):content.update(chunk)
+        records.append({"relative_path":path.relative_to(root).as_posix(),"size":path.stat().st_size,"sha256":content.hexdigest()})
+    canonical=json.dumps(records,sort_keys=True,separators=(",",":"))
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
 def main():
     args=parse_args();
     git_sha=legacy.current_git_sha();commit_provenance=legacy.execution_commit_provenance()
     if args.batch_size!=40:raise ValueError("V2 requires global batch 40 (10 tasks x 4)")
     if args.seed!=42:raise ValueError("V2 frozen protocol requires seed 42")
     if args.resume != bool(args.from_checkpoint):raise ValueError("--resume and --from-checkpoint must be paired")
-    norm_path,_,norm_hash,base_hash=legacy.require_inputs(args)
+    norm_path,_,norm_hash,base_inventory_hash=legacy.require_inputs(args)
+    params_path=args.base_checkpoint/"params";base_content_hash=params_content_hash(params_path)
+    if base_content_hash!=args.base_params_sha256:raise ValueError("base params aggregate content SHA256 mismatch")
     train,val,dataset_manifest=legacy.load_datasets(args)
     if dataset_manifest.get("seed")!=42 or dataset_manifest.get("holdout_per_task")!=2:raise ValueError("dataset split must remain seed42/two demos per task")
     transform=legacy.make_transform(norm_path);zero={s:0 for s in bank.SUITES}
@@ -89,7 +104,7 @@ def main():
     from flax import nnx
     from openpi.training import sharding
     if len(jax.devices())!=8:raise RuntimeError("V2 requires exactly 8 devices")
-    mesh=sharding.make_mesh(8);params_path=args.base_checkpoint/"params"
+    mesh=sharding.make_mesh(8)
     base_graphdef,frozen=bank.initialize_native_base(str(params_path),mesh)
     base_model=nnx.merge(base_graphdef,frozen)
     feature_dim=int(base_model.action_out_proj.in_features)
@@ -104,18 +119,28 @@ def main():
       "updates_per_head":UPDATES_PER_HEAD,"batch_size":40,"holdout_every":EVAL_EVERY,"checkpoint_every":SAVE_EVERY,
       "smoke_checkpoint":{"global_step":SMOKE_SAVE_STEP,"directory":"checkpoints_smoke","not_regular_checkpoint":True},
       "optimizer":{"name":"adamw","peak_lr":1e-4,"end_lr":1e-5,"warmup_per_head":500,"b1":.9,"b2":.95,"eps":1e-8,"weight_decay":1e-4,"clip":1,"ema":False},
-      "head_config":head_config,"dataset_manifest":dataset_manifest,"base_inventory_sha256":base_hash,"norm_stats_sha256":norm_hash,
+      "head_config":head_config,"dataset_manifest":dataset_manifest,"base_inventory_sha256":base_inventory_hash,
+      "base_params_content_sha256":base_content_hash,"norm_stats_sha256":norm_hash,
+      "base":{"graph":"native_pi05_libero","frozen":True,"dtype":"bfloat16"},"head_dtype":"float32",
+      "loss":{"fm":1.0,"paired_regret":1.0,"rho":.05,"correction_norm":.001,"gate_bce":.1,
+        "groups":"equal xyz_mean/rotation_mean/gripper"},
       "gate_semantics":"FM surrogate; not rollout success"};manifest["manifest_sha256"]=canonical_hash(manifest)
     manifest_path=args.output_dir/"run_manifest.json"
     if args.resume:
         if json.loads(manifest_path.read_text())!=manifest:raise ValueError("resume manifest mismatch")
         heads,opts,steps,saved=bank.load_head_bank(args.from_checkpoint,heads,opts,expected_base_checkpoint_path=str(params_path),
-          expected_norm_stats_sha256=norm_hash,expected_base_manifest_sha256=base_hash,expected_head_config=head_config)
+          expected_norm_stats_sha256=norm_hash,expected_base_manifest_sha256=base_content_hash,expected_head_config=head_config)
         if saved.get("metadata",{}).get("run_manifest_sha256")!=manifest["manifest_sha256"]:raise ValueError("resume checkpoint/run manifest mismatch")
         expected_steps={suite:(sum(steps.values())+3-index)//4 for index,suite in enumerate(bank.SUITES)}
         if steps!=expected_steps:raise ValueError("resume head counters violate deterministic round-robin")
     else:manifest_path.write_text(json.dumps(manifest,indent=2,sort_keys=True)+"\n")
     heads=jax.device_put(heads,sharding.fsdp_sharding(heads,mesh));opts=jax.device_put(opts,sharding.fsdp_sharding(opts,mesh))
+    def tree_equal(left,right):
+        left_leaves,left_tree=jax.tree.flatten(left);right_leaves,right_tree=jax.tree.flatten(right)
+        return left_tree==right_tree and len(left_leaves)==len(right_leaves) and all(
+          np.array_equal(np.asarray(jax.device_get(a)),np.asarray(jax.device_get(b)))
+          for a,b in zip(left_leaves,right_leaves,strict=True))
+    base_leaf_identity=tuple(id(leaf) for leaf in jax.tree.leaves(frozen))
     loaders=make_loaders(args,train,transform,steps,True);iters={s:iter(loaders[s]) for s in bank.SUITES}
     val_loaders=make_loaders(args,val,transform,zero,False);val_batches={s:batch_parts(next(iter(val_loaders[s]))) for s in bank.SUITES}
     step_fn=bank.make_sharded_head_step(base_graphdef,head_graphdef,tx,mesh)
@@ -128,8 +153,13 @@ def main():
     while global_step<TOTAL_UPDATES:
         suite=bank.SUITES[global_step%4];obs,actions,tasks,valid=batch_parts(next(iters[suite]));obs,actions,tasks,valid=legacy.put_batch_on_mesh((obs,actions,tasks,valid),mesh)
         rng=jax.random.fold_in(jax.random.key(args.seed),global_step)
-        heads[suite],opts[suite],metrics=step_fn(frozen,heads[suite],opts[suite],obs,actions,tasks,valid,rng,steps[suite])
-        steps[suite]+=1;global_step+=1;run.log({f"train/{suite}/{k}":float(np.asarray(jax.device_get(v))) for k,v in metrics.items()},step=global_step)
+        prior_head=heads[suite]
+        candidate_head,candidate_opt,metrics=step_fn(frozen,prior_head,opts[suite],obs,actions,tasks,valid,rng,steps[suite])
+        host_metrics={k:float(np.asarray(jax.device_get(v))) for k,v in metrics.items()}
+        if not all(np.isfinite(value) for value in host_metrics.values()):raise FloatingPointError(f"non-finite train metric before state commit: {host_metrics}")
+        if global_step<SMOKE_SAVE_STEP and tree_equal(prior_head,candidate_head):raise RuntimeError("selected head did not change during startup smoke")
+        heads[suite],opts[suite]=candidate_head,candidate_opt
+        steps[suite]+=1;global_step+=1;run.log({f"train/{suite}/{k}":v for k,v in host_metrics.items()},step=global_step)
         if global_step%EVAL_EVERY==0:
             # Holdout is diagnostic only; no optimizer update and no success claim.
             logs={}
@@ -141,9 +171,20 @@ def main():
             run.log(logs,step=global_step)
         if global_step==SMOKE_SAVE_STEP or global_step%SAVE_EVERY==0 or stop:
             checkpoint_group="checkpoints_smoke" if global_step==SMOKE_SAVE_STEP else "checkpoints"
-            bank.save_head_bank(args.output_dir/checkpoint_group/f"step_{global_step:08d}",heads,opts,steps,
-              base_checkpoint_path=str(params_path),norm_stats_sha256=norm_hash,base_manifest_sha256=base_hash,
+            checkpoint_path=args.output_dir/checkpoint_group/f"step_{global_step:08d}"
+            bank.save_head_bank(checkpoint_path,heads,opts,steps,
+              base_checkpoint_path=str(params_path),norm_stats_sha256=norm_hash,base_manifest_sha256=base_content_hash,
               head_config=head_config,metadata={"run_manifest_sha256":manifest["manifest_sha256"]})
+            if global_step==SMOKE_SAVE_STEP:
+                restored_heads,restored_opts,restored_steps,_=bank.load_head_bank(checkpoint_path,heads,opts,
+                  expected_base_checkpoint_path=str(params_path),expected_norm_stats_sha256=norm_hash,
+                  expected_base_manifest_sha256=base_content_hash,expected_head_config=head_config)
+                if (restored_steps!=steps or not tree_equal(restored_heads,heads)
+                        or not tree_equal(restored_opts,opts)):raise RuntimeError("startup smoke checkpoint restore mismatch")
+                if tuple(id(leaf) for leaf in jax.tree.leaves(frozen))!=base_leaf_identity:raise RuntimeError("frozen native base state identity changed")
+                print(json.dumps({"startup_smoke":"passed","global_step":global_step,
+                  "base_invariant":"immutable non-donated state leaf identity unchanged",
+                  "checkpoint":str(checkpoint_path)},sort_keys=True),flush=True)
         if stop:break
     run.finish()
 

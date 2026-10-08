@@ -11,12 +11,16 @@ if [[ ${PI05_ALLOW_UNPUBLISHED_COMMIT:-0} != 1 ]]; then
   upstream=$(git -C "$repo_dir" rev-parse '@{upstream}')
   [[ $(git -C "$repo_dir" rev-parse "$upstream") == "$EXPECTED_COMMIT" ]] || { echo "fatal: upstream mismatch" >&2; exit 2; }
 fi
-export PYTHONPATH="$repo_dir:$repo_dir/src:$repo_dir/packages/openpi-client/src${PYTHONPATH:+:$PYTHONPATH}"
+OPENPI_RUNTIME_OVERLAY=${OPENPI_RUNTIME_OVERLAY:-/pfs/user/data/physicalrsi_pi05/runtime_deps/av15_overlay}
+[[ -d $OPENPI_RUNTIME_OVERLAY ]] || { echo "fatal: OPENPI_RUNTIME_OVERLAY is not a directory" >&2; exit 2; }
+overlay_prefix="$OPENPI_RUNTIME_OVERLAY:"
+export PYTHONPATH="$overlay_prefix$repo_dir:$repo_dir/src:$repo_dir/packages/openpi-client/src${PYTHONPATH:+:$PYTHONPATH}"
 python_bin=/.venv/bin/python
 [[ -x "$python_bin" ]] || { echo "fatal: /.venv/bin/python missing" >&2; exit 2; }
 "$python_bin" -c 'import av, flax, jax, numpy, optax, pyarrow, torch, wandb'
 exec "$python_bin" "$repo_dir/scripts/train_four_residual_heads.py" \
   --base-checkpoint "${BASE_CHECKPOINT:?}" \
+  --base-params-sha256 "${BASE_PARAMS_SHA256:?}" \
   --data-root "${DATA_ROOT:?}" \
   --output-dir "${OUTPUT_DIR:?}" \
   "$@"
