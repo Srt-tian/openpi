@@ -113,7 +113,7 @@ def main():
     signal.signal(signal.SIGTERM, interrupted)
     signal.signal(signal.SIGINT, interrupted)
     try:
-        for batch, paths, policy, cases in batches:
+        for batch_index, (batch, paths, policy, cases) in enumerate(batches):
             check_checkout(root, args.expected_commit)
             check_checkout(args.physicalrsi_root, args.expected_physicalrsi_commit)
             if hashlib.sha256((args.plugins / "manifest.json").read_bytes()).hexdigest() != manifest_sha:
@@ -125,9 +125,11 @@ def main():
             command = [str(args.policy_python), str(root / "scripts/serve_plugin_policy.py"),
                        "--base-checkpoint", str(args.base), "--plugin-checkpoint", str(args.plugins),
                        "--policy-id", policy, "--port", str(args.port), "--allow-verified-base-relocation"]
-            with (args.output / f"server_{batch['name']}.log").open("w") as log:
-                server = subprocess.Popen(command, cwd=root, env=policy_env, stdout=log,
-                                          stderr=subprocess.STDOUT, start_new_session=True)
+            state["service_reused_from_previous_batch"] = server is not None
+            if server is None:
+                with (args.output / f"server_{batch['name']}.log").open("w") as log:
+                    server = subprocess.Popen(command, cwd=root, env=policy_env, stdout=log,
+                                              stderr=subprocess.STDOUT, start_new_session=True)
             state["server_pid"] = server.pid
             save(args.output / "controller.json", record)
             deadline = time.monotonic() + 900
@@ -170,8 +172,12 @@ def main():
             summary = json.loads((args.output / batch["name"] / "summary.json").read_text())
             validate_summary(summary, cases, policy, batch["mode"])
             state.update(status="complete", summary=summary)
-            stop(server)
-            server = None
+            # Same-policy control/probe arms share one loaded model graph so a
+            # cold-load numeric change cannot masquerade as a harness effect.
+            next_policy = batches[batch_index + 1][2] if batch_index + 1 < len(batches) else None
+            if next_policy != policy:
+                stop(server)
+                server = None
             save(args.output / "controller.json", record)
         record["status"] = "complete"
     except BaseException as exc:

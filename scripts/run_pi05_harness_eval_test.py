@@ -69,6 +69,57 @@ class CliValidationTest(unittest.TestCase):
         path.write_text(json.dumps(value))
         return path
 
+    def write_control_registry(self, directory, override=None):
+        root = Path(directory)
+        tasks, digests = {}, {}
+        for suite in cli.SUITES:
+            for task_id in range(10):
+                key = f"{suite}/{task_id}"
+                relative = f"tasks/{suite}_{task_id}.json"
+                config = {"schema": 1, "task": key}
+                if key == "libero_goal/3" and override is not None:
+                    config.update(override)
+                path = root / relative
+                path.parent.mkdir(exist_ok=True)
+                path.write_text(json.dumps(config))
+                tasks[key] = relative
+                digests[key] = cli._canonical_sha256(config)
+        registry = root / "registry.json"
+        registry.write_text(json.dumps({"schema": 1, "default_skill": "pi05",
+            "tasks": tasks, "metadata": {"task_config_sha256": digests}}))
+        return registry
+
+    def test_task_controls_reject_malformed_unknown_and_nested_fields(self):
+        bad_values = [
+            {"pi05_control": {"kind": "response_probe_v1", "enabled": 1}},
+            {"pi05_control": {"kind": "response_probe_v1", "enabled": True,
+                              "unknown": 1}},
+            {"proposal": {"pi05_control": {"kind": "response_probe_v1", "enabled": True}}},
+        ]
+        for value in bad_values:
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
+                registry = self.write_control_registry(directory, value)
+                with self.assertRaisesRegex(ValueError, "pi05_control"):
+                    cli.load_task_control_snapshot(registry)
+
+    def test_task_config_digest_mismatch_is_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            registry = self.write_control_registry(directory, {
+                "pi05_control": {"kind": "response_probe_v1", "enabled": True}
+            })
+            snapshot = cli.load_task_control_snapshot(registry)
+            proposal = {"task_config_sha256": dict(snapshot["task_config_sha256"])}
+            changed = json.loads(json.dumps(snapshot))
+            changed["task_config_sha256"]["libero_goal/3"] = "0" * 64
+            with self.assertRaisesRegex(ValueError, "changed across"):
+                cli.validate_control_materialization(snapshot, changed, proposal)
+            task_path = Path(directory) / "tasks/libero_goal_3.json"
+            config = json.loads(task_path.read_text())
+            config["status"] = "changed"
+            task_path.write_text(json.dumps(config))
+            with self.assertRaisesRegex(ValueError, "declared task config digest mismatch"):
+                cli.load_task_control_snapshot(registry)
+
     def test_routes_are_task_only_and_identity_is_frozen(self):
         with tempfile.TemporaryDirectory() as directory:
             valid = self.write_json(directory, "valid.json", route_document())
@@ -266,6 +317,12 @@ class ExecutePersistenceTest(unittest.TestCase):
 
     @staticmethod
     def patches(tasks, run_new):
+        keys = {f"{suite}/{task_id}" for suite in cli.SUITES for task_id in range(10)}
+        digests = {key: "d" * 64 for key in keys}
+        snapshot = {
+            "controls": {key: {"kind": "response_probe_v1", "enabled": False} for key in keys},
+            "task_config_sha256": digests,
+        }
         api = SimpleNamespace(
             Runner=object,
             Observation=object,
@@ -285,7 +342,9 @@ class ExecutePersistenceTest(unittest.TestCase):
             mock.patch.object(cli.backend, "import_roborsi", return_value=api),
             mock.patch.object(cli.backend, "import_eval_helpers", return_value=helpers),
             mock.patch.object(cli, "catalog_tasks", return_value=tasks),
-            mock.patch.object(cli.backend, "materialize_pi05_registry", return_value={"harnesses": {}}),
+            mock.patch.object(cli.backend, "materialize_pi05_registry", return_value={
+                "harnesses": {}, "task_config_sha256": digests,
+            }),
             mock.patch.object(cli, "preflight_identity", return_value={
                 "policy_id": "object", "checkpoint_sha256": CHECKPOINT,
                 "base_graph": "pi05_lora", "adapter_sha256": ADAPTER,
@@ -293,6 +352,7 @@ class ExecutePersistenceTest(unittest.TestCase):
             mock.patch.object(cli, "_run_new_loop", side_effect=run_new),
             mock.patch.object(cli, "save_video", return_value={"written": False}),
             mock.patch.object(cli, "_sha256", return_value="f" * 64),
+            mock.patch.object(cli, "load_task_control_snapshot", return_value=snapshot),
         )
 
     def test_harness_mode_keeps_error_case_and_continues(self):
@@ -309,7 +369,7 @@ class ExecutePersistenceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             args = self.make_args(directory, "harness", cases)
             patches = self.patches(tasks, [RuntimeError("service"), good])
-            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7]:
+            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8]:
                 result = cli.execute(args)
             self.assertEqual(result["completed"], 2)
             self.assertEqual(result["errors"], 1)
@@ -327,6 +387,24 @@ class ExecutePersistenceTest(unittest.TestCase):
             args = self.make_args(directory, "parity", cases)
             with self.assertRaisesRegex(ValueError, "replicate_id=0"):
                 cli.execute(args)
+            self.assertFalse(args.output.exists())
+
+    def test_legacy_rejects_any_enabled_task_control(self):
+        cases = [{"suite": "libero_object", "task_id": 4, "init_id": 0}]
+        tasks = {"libero_object/4": {"instruction": "original", "max_steps": 280}}
+        keys = {f"{suite}/{task_id}" for suite in cli.SUITES for task_id in range(10)}
+        snapshot = {"controls": {
+            key: {"kind": "response_probe_v1", "enabled": key == "libero_goal/3"}
+            for key in keys
+        }, "task_config_sha256": {key: "d" * 64 for key in keys}}
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.make_args(directory, "legacy", cases)
+            patches = self.patches(tasks, [])
+            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], mock.patch.object(
+                cli, "load_task_control_snapshot", return_value=snapshot
+            ):
+                with self.assertRaisesRegex(ValueError, "only in harness mode"):
+                    cli.execute(args)
             self.assertFalse(args.output.exists())
 
     def test_main_returns_nonzero_for_parity_mismatch(self):
@@ -353,7 +431,7 @@ class ExecutePersistenceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             args = self.make_args(directory, "parity", cases)
             patches = self.patches(tasks, [new])
-            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], mock.patch.object(
+            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], mock.patch.object(
                 cli, "_run_old_loop", return_value=old
             ):
                 result = cli.execute(args)
@@ -375,7 +453,7 @@ class ExecutePersistenceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             args = self.make_args(directory, "legacy", cases)
             patches = self.patches(tasks, [])
-            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], mock.patch.object(
+            with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], patches[7], patches[8], mock.patch.object(
                 cli, "_run_old_loop", return_value=old
             ) as run_old:
                 result = cli.execute(args)

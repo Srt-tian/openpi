@@ -19,6 +19,7 @@ from typing import Any, Mapping
 import numpy as np
 
 import pi05_harness_backend as backend
+import pi05_response_probe as response_probe
 
 
 SUITES = ("libero_spatial", "libero_object", "libero_goal", "libero_10")
@@ -197,6 +198,84 @@ def _sha256(path: Path | str) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _canonical_sha256(value: Any) -> str:
+    return hashlib.sha256(json.dumps(
+        value, sort_keys=True, allow_nan=False, separators=(",", ":")
+    ).encode()).hexdigest()
+
+
+def load_task_control_snapshot(registry_path: Path | str) -> dict[str, Any]:
+    """Read all 40 task files and admit only the task-level probe control."""
+    registry_path = Path(registry_path).resolve()
+    document = json.loads(registry_path.read_text())
+    expected = {_task_key(suite, task_id) for suite in SUITES for task_id in range(10)}
+    tasks = document.get("tasks")
+    declared = document.get("metadata", {}).get("task_config_sha256")
+    if not isinstance(tasks, dict) or set(tasks) != expected:
+        raise ValueError("control registry must contain the exact LIBERO-40 task set")
+    if not isinstance(declared, dict) or set(declared) != expected:
+        raise ValueError("control registry must declare all 40 task config digests")
+    controls, digests = {}, {}
+    for key, relative in tasks.items():
+        if not isinstance(relative, str) or not relative:
+            raise ValueError("registry task path must be a nonempty string")
+        path = (registry_path.parent / relative).resolve()
+        if not path.is_relative_to(registry_path.parent) or not path.is_file():
+            raise ValueError("registry task config escapes or is missing")
+        config = json.loads(path.read_text())
+        if not isinstance(config, dict) or config.get("task") != key:
+            raise ValueError("task config identity mismatch")
+        found = []
+
+        def scan(value: Any, depth: int = 0):
+            if isinstance(value, dict):
+                for name, child in value.items():
+                    if name == "pi05_control":
+                        found.append((depth, child))
+                    scan(child, depth + 1)
+            elif isinstance(value, list):
+                for child in value:
+                    scan(child, depth + 1)
+
+        scan(config)
+        if len(found) > 1 or (found and found[0][0] != 0):
+            raise ValueError("pi05_control is admitted only once at task-config top level")
+        if "pi05_control" not in config:
+            control = {"kind": "response_probe_v1", "enabled": False}
+        else:
+            raw = config["pi05_control"]
+            if (not isinstance(raw, dict) or set(raw) != {"kind", "enabled"}
+                    or raw.get("kind") != "response_probe_v1"
+                    or type(raw.get("enabled")) is not bool):
+                raise ValueError("invalid task-level pi05_control schema")
+            control = dict(raw)
+        digest = _canonical_sha256(config)
+        if declared[key] != digest:
+            raise ValueError(f"declared task config digest mismatch: {key}")
+        controls[key], digests[key] = control, digest
+    return {"controls": controls, "task_config_sha256": digests}
+
+
+def validate_control_materialization(
+    before: Mapping[str, Any], after: Mapping[str, Any], proposal: Mapping[str, Any]
+) -> None:
+    expected = proposal.get("task_config_sha256")
+    if (before.get("task_config_sha256") != after.get("task_config_sha256")
+            or not isinstance(expected, dict)
+            or after.get("task_config_sha256") != expected):
+        raise ValueError("task config digest changed across registry materialization")
+
+
+def validate_enabled_control_harness(
+    control: Mapping[str, Any], harness: Mapping[str, Any], task: Mapping[str, Any]
+) -> None:
+    if not control["enabled"]:
+        return
+    instruction, cap = validate_parity_harness(harness, int(task["max_steps"]))
+    if harness.get("remember") != [] or instruction != task["instruction"] or cap != task["max_steps"]:
+        raise ValueError("response probe requires the original full-cap single-stage task")
 
 
 def _jsonable(value: Any):
@@ -440,6 +519,7 @@ def _run_new_loop(
     expected_identity: Mapping[str, Any],
     case: Mapping[str, Any],
     harness: Mapping[str, Any],
+    control: Mapping[str, Any],
     payload_hash_records: list[dict[str, Any]] | None = None,
 ) -> backend.BackendEpisode:
     ambient_seed, _ = validate_case_seeds(case)
@@ -449,23 +529,33 @@ def _run_new_loop(
     transport_factory = backend.episode_identity_transport_factory(
         helpers, inner_factory, expected_identity
     )
-    skill = backend.Pi05HarnessSkill(
+    delegate = backend.Pi05HarnessSkill(
         transport_factory,
         policy_id=case["policy_id"],
         policy_seed=case["policy_seed"],
     )
+    base_environment_factory = lambda: backend.Pi05HarnessEnvironment(
+        api.Observation,
+        helpers,
+        suite=case["suite"],
+        task_id=case["task_id"],
+        policy_id=case["policy_id"],
+        policy_seed=case["policy_seed"],
+    )
+    if control != {"kind": "response_probe_v1", "enabled": bool(control.get("enabled"))}:
+        raise ValueError("unvalidated PI0.5 control reached execution")
+    if control["enabled"]:
+        skill = response_probe.Pi05ResponseProbeSkill(delegate)
+        environment_factory = response_probe.response_probe_environment_factory(
+            base_environment_factory, skill
+        )
+    else:
+        skill, environment_factory = delegate, base_environment_factory
     random.seed(ambient_seed)
     np.random.seed(ambient_seed)
     return backend.run_with_shared_runner(
         api.Runner,
-        lambda: backend.Pi05HarnessEnvironment(
-            api.Observation,
-            helpers,
-            suite=case["suite"],
-            task_id=case["task_id"],
-            policy_id=case["policy_id"],
-            policy_seed=case["policy_seed"],
-        ),
+        environment_factory,
         skill,
         harness,
         init_id=case["init_id"],
@@ -564,6 +654,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     policy_id = bind_routes(cases, routes)
     if args.mode == "parity" and any(case["replicate_id"] != 0 for case in cases):
         raise ValueError("parity mode admits only replicate_id=0 migration checks")
+    control_before = load_task_control_snapshot(args.registry)
     uri = service_uri(args.host, args.port)
     output = args.output.resolve()
     if output.exists():
@@ -573,6 +664,20 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     helpers = backend.import_eval_helpers(args.eval_helpers)
     tasks = catalog_tasks()
     proposal = backend.materialize_pi05_registry(args.roborsi_root, args.registry, tasks)
+    control_after = load_task_control_snapshot(args.registry)
+    validate_control_materialization(control_before, control_after, proposal)
+    task_controls = control_after["controls"]
+    enabled_keys = [key for key, value in task_controls.items() if value["enabled"]]
+    if enabled_keys and args.mode != "harness":
+        raise ValueError("enabled pi05_control is admitted only in harness mode")
+    for key in enabled_keys:
+        suite, raw_task_id = key.split("/")
+        task = tasks[key]
+        harness = backend.harness_for_task(
+            api, proposal, suite=suite, task_id=int(raw_task_id),
+            instruction=task["instruction"], official_cap=task["max_steps"]
+        )
+        validate_enabled_control_harness(task_controls[key], harness, task)
     expected_identity = routes["identities"][policy_id]
     verified_identity = preflight_identity(
         helpers,
@@ -598,6 +703,8 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         "cases_sha256": _sha256(args.cases),
         "registry_sha256": _sha256(args.registry),
         "registry": str(args.registry.resolve()),
+        "task_controls": task_controls,
+        "task_config_sha256": control_after["task_config_sha256"],
         "roborsi_root": str(args.roborsi_root.resolve()),
         "eval_helpers": str(args.eval_helpers.resolve()),
         "cases": cases,
@@ -614,6 +721,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         "source_hashes": {
             "backend": _sha256(Path(__file__).with_name("pi05_harness_backend.py")),
             "cli": _sha256(Path(__file__)),
+            "response_probe": _sha256(Path(__file__).with_name("pi05_response_probe.py")),
             "eval_helpers": _sha256(args.eval_helpers),
             "roborsi_core": _sha256(args.roborsi_root / "src/roborsi/self_harness/core.py"),
             "roborsi_registry": _sha256(args.roborsi_root / "src/roborsi/self_harness/registry.py"),
@@ -638,6 +746,8 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             "execution_backend": args.mode,
             "episode": str(episode_path.relative_to(output)),
         }
+        task_control = copy.deepcopy(task_controls[_task_key(case["suite"], case["task_id"])])
+        row["pi05_control"] = task_control
         try:
             task = tasks[_task_key(case["suite"], case["task_id"])]
             if args.mode == "parity":
@@ -664,6 +774,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                     verified_identity,
                     case,
                     selected_harness,
+                    task_control,
                     payload_hash_records=runner_payload_hashes,
                 )
                 parity = compare_parity(old, new)
@@ -675,6 +786,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 )
                 evidence = {
                     "case": case,
+                    "pi05_control": task_control,
                     "harness": selected_harness,
                     "old": old,
                     "runner": {
@@ -717,11 +829,13 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                     verified_identity,
                     case,
                     harness,
+                    task_control,
                     payload_hash_records=payload_hashes,
                 )
                 video = save_video(videos / f"{index:03d}_harness.mp4", new.trace_frames)
                 evidence = {
                     "case": case,
+                    "pi05_control": task_control,
                     "harness": harness,
                     "runner": {
                         "report": new.report,
@@ -750,6 +864,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                 video = save_video(videos / f"{index:03d}_legacy.mp4", old.pop("frames"))
                 evidence = {
                     "case": case,
+                    "pi05_control": task_control,
                     "execution_backend": "legacy",
                     "legacy": old,
                     "video": video,
@@ -763,6 +878,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         except Exception as exc:
             evidence = {
                 "case": case,
+                "pi05_control": task_control,
                 "status": "error",
                 "success": False,
                 "error_type": type(exc).__name__,

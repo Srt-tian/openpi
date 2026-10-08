@@ -162,6 +162,49 @@ class WorkerTest(unittest.TestCase):
             self.assertEqual(status["services_per_gpu"], 1)
             self.assertEqual(status["simulators_per_gpu"], 1)
 
+    def test_same_policy_control_probe_reuses_one_loaded_service(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args = self.fixture(directory)
+            job = json.loads(args.job.read_text())
+            job["batches"].append({**job["batches"][0], "name": "object-control"})
+            write(args.job, job)
+            processes, stopped = [], []
+
+            class SuccessfulEvaluator(FakeProcess):
+                def wait(self, timeout=None):
+                    command = self.command
+                    output = Path(command[command.index("--output") + 1])
+                    cases = json.loads((args.code / "cases.json").read_text())["cases"]
+                    write(output / "summary.json", {"complete": True, "errors": 0,
+                          "planned": len(cases), "completed": len(cases),
+                          "cases": [{**case, "policy_id": "object", "status": "success"}
+                                    for case in cases]})
+                    self.returncode = 0
+                    return 0
+
+            def launch(command, **kwargs):
+                cls = SuccessfulEvaluator if command[0] == "bash" else FakeProcess
+                process = cls(command, **kwargs)
+                processes.append(process)
+                return process
+
+            with mock.patch.object(argparse.ArgumentParser, "parse_args", return_value=args), \
+                 mock.patch.object(worker, "check_checkout"), \
+                 mock.patch.object(worker, "ensure_gpu_idle"), \
+                 mock.patch.object(worker, "gpu_locks", return_value=[object()]), \
+                 mock.patch.object(worker.socket, "create_connection"), \
+                 mock.patch.object(worker.subprocess, "Popen", side_effect=launch), \
+                 mock.patch.object(worker, "stop", side_effect=stopped.append):
+                worker.main()
+            self.assertEqual(len(processes), 3)  # one service, two sequential evaluators
+            result = json.loads((args.output / "controller.json").read_text())
+            self.assertEqual(result["status"], "complete")
+            first, second = result["batches"]
+            self.assertEqual(first["server_pid"], second["server_pid"])
+            self.assertFalse(first["service_reused_from_previous_batch"])
+            self.assertTrue(second["service_reused_from_previous_batch"])
+            self.assertEqual(stopped.count(processes[0]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

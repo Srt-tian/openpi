@@ -1,0 +1,51 @@
+{
+  "evidence": {
+    "forbidden_oracles": [
+      "object_state",
+      "grasp_state",
+      "init_id_routing"
+    ],
+    "full_repeat_verified": {
+      "base": "103/140",
+      "plugins": "106/140"
+    },
+    "observations": {
+      "aperture_approx": 0.08,
+      "open_steps_gt": 30,
+      "robot_z_span_approx": 0.001,
+      "z_command_approx": -0.85
+    },
+    "scope": "posthoc_repeat_diagnostic_not_full400_score",
+    "shared_hard_case": {
+      "base": "1/10",
+      "plugin": "0/10"
+    }
+  },
+  "harness": {
+    "name": "pi05-base",
+    "remember": [],
+    "schema": 1,
+    "stages": [
+      {
+        "instruction": "open the top drawer and put the bowl inside",
+        "max_steps": 300,
+        "on_timeout": "abort",
+        "skill": "pi05",
+        "until": null
+      }
+    ]
+  },
+  "parent_sha256": "8f4079a3c03449f40c77beb9bad2990c9fb28b5d8bbf9496b4a49e5eb02bd4e0",
+  "pi05_control": {
+    "enabled": true,
+    "kind": "response_probe_v1"
+  },
+  "proposal": {
+    "candidate": "response_probe_v1",
+    "rationale": "Fixed goal/3 task-level control; research screening only."
+  },
+  "reasoning": "Task-wide response probe for goal/3, motivated by a shared hard case with base 1/10 and plugin 0/10; robot z span was about 0.001 despite z command about -0.85, open persisted over 30 steps, and aperture was about 0.08.",
+  "schema": 1,
+  "status": "unvalidated_research_probe",
+  "task": "libero_goal/3"
+}
