@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -12,7 +13,8 @@ import tempfile
 import pi05_harness_backend as backend
 
 
-SOURCE = Path("/home/user/tian_ws/eip_training_runs/full2000_public_transport_20261007")
+SOURCE = Path(os.environ.get("PI05_TEST_PHYSICALRSI_ROOT",
+    "/home/user/tian_ws/eip_training_runs/full2000_public_transport_20261007"))
 CATALOG = SOURCE / "configs/task_catalog.json"
 DEFAULT_OUTPUT = Path(__file__).resolve().parents[1] / "configs/pi05_harness"
 CAPS = {"libero_spatial": 220, "libero_object": 280, "libero_goal": 300, "libero_10": 520}

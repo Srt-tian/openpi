@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -12,7 +13,8 @@ import tempfile
 import pi05_harness_backend as backend
 
 
-SOURCE = Path("/home/user/tian_ws/eip_training_runs/full2000_public_transport_20261007")
+SOURCE = Path(os.environ.get("PI05_TEST_PHYSICALRSI_ROOT",
+    "/home/user/tian_ws/eip_training_runs/full2000_public_transport_20261007"))
 PATCH = Path(__file__).resolve().parents[1]
 DEFAULT_BASELINE = PATCH / "configs/pi05_harness"
 DEFAULT_OUTPUT = PATCH / "configs/pi05_response_probe"
