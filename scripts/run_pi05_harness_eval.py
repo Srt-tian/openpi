@@ -19,6 +19,7 @@ from typing import Any, Mapping
 import numpy as np
 
 import pi05_harness_backend as backend
+import pi05_closed_dwell_lift as closed_dwell_lift
 import pi05_instruction_lease as instruction_lease
 import pi05_response_probe as response_probe
 
@@ -259,7 +260,11 @@ def load_task_control_snapshot(registry_path: Path | str) -> dict[str, Any]:
                 and bool(raw["instruction"].strip()) and len(raw["instruction"]) <= 512
                 and type(raw.get("lease_steps")) is int
                 and raw["lease_steps"] in instruction_lease.LEASE_STEPS)
-            if not response_valid and not lease_valid:
+            lift_valid = (isinstance(raw, dict)
+                and set(raw) == {"kind", "enabled"}
+                and raw.get("kind") == closed_dwell_lift.KIND
+                and raw.get("enabled") is True)
+            if not response_valid and not lease_valid and not lift_valid:
                 raise ValueError("invalid task-level pi05_control schema")
             control = dict(raw)
         digest = _canonical_sha256(config)
@@ -565,6 +570,11 @@ def _run_new_loop(
         environment_factory = response_probe.response_probe_environment_factory(
             base_environment_factory, skill
         )
+    elif control.get("enabled") and control.get("kind") == closed_dwell_lift.KIND:
+        skill = closed_dwell_lift.Pi05ClosedDwellLiftSkill(delegate)
+        environment_factory = response_probe.response_probe_environment_factory(
+            base_environment_factory, skill
+        )
     elif control == {"kind": "response_probe_v1", "enabled": False}:
         skill, environment_factory = delegate, base_environment_factory
     else:
@@ -741,6 +751,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             "cli": _sha256(Path(__file__)),
             "response_probe": _sha256(Path(__file__).with_name("pi05_response_probe.py")),
             "instruction_lease": _sha256(Path(__file__).with_name("pi05_instruction_lease.py")),
+            "closed_dwell_lift": _sha256(Path(__file__).with_name("pi05_closed_dwell_lift.py")),
             "eval_helpers": _sha256(args.eval_helpers),
             "roborsi_core": _sha256(args.roborsi_root / "src/roborsi/self_harness/core.py"),
             "roborsi_registry": _sha256(args.roborsi_root / "src/roborsi/self_harness/registry.py"),

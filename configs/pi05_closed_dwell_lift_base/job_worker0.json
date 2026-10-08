@@ -1,0 +1,19 @@
+{
+  "batches": [
+    {
+      "cases": "configs/pi05_closed_dwell_lift_base/cases_worker0.json",
+      "mode": "harness",
+      "name": "worker0_control",
+      "registry": "configs/pi05_harness/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    },
+    {
+      "cases": "configs/pi05_closed_dwell_lift_base/cases_worker0.json",
+      "mode": "harness",
+      "name": "worker0_assist",
+      "registry": "configs/pi05_closed_dwell_lift_base/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    }
+  ],
+  "schema": "pi05_harness_worker.v1"
+}

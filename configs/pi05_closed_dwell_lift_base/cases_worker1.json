@@ -1,0 +1,71 @@
+{
+  "cases": [
+    {
+      "init_id": 2,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 1,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 2,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 3,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 4,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 5,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 6,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 7,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 8,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 9,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 4,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    }
+  ],
+  "schema": "pi05_harness_cases.v1"
+}
