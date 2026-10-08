@@ -29,6 +29,26 @@ def episode(manual=False):
 
 
 class ResponseProbeAggregateTest(unittest.TestCase):
+    def test_strong_parameters_raise_manual_bound_and_reserve_strictly(self):
+        control, probe = episode(False), episode(True)
+        provenance = probe["runner"]["report"]["skills"]["pi05"]["provenance"]
+        provenance["parameters"] = {"lift_z_command": .2, "max_lift_steps": 20,
+            "lift_target_m": .025, "native_reserve_steps": 80,
+            "max_manual_actions": 26, "trigger_remaining_steps": 111}
+        result = target.causal_pair(control, probe)
+        self.assertTrue(result["causal_gate_pass"])
+        self.assertEqual(result["response_probe_parameters"], provenance["parameters"])
+
+    def test_invalid_parameter_provenance_is_confounded(self):
+        control, probe = episode(False), episode(True)
+        probe["runner"]["report"]["skills"]["pi05"]["provenance"]["parameters"] = {
+            "lift_z_command": .2, "max_lift_steps": 20, "lift_target_m": .025,
+            "native_reserve_steps": 20, "max_manual_actions": 14,
+            "trigger_remaining_steps": 39}
+        result = target.causal_pair(control, probe)
+        self.assertFalse(result["causal_gate_pass"])
+        self.assertIn("invalid response-probe provenance parameters", result["confounds"])
+
     def test_triggered_exact_prefix_passes(self):
         control, probe = episode(False), episode(True)
         result = target.causal_pair(control, probe)

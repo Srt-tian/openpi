@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 import json
+import math
 from pathlib import Path
 
 TASK = ("libero_goal", 3)
@@ -33,11 +34,36 @@ def episode_key(case: dict) -> tuple[int, int]:
     return key
 
 
-def manual_info(episode: dict) -> tuple[int | None, int, list[str], list[str]]:
+def manual_info(episode: dict) -> tuple[int | None, int, list[str], dict, list[str]]:
     report = episode.get("runner", {}).get("report", {})
     skill = report.get("skills", {}).get("pi05", {})
     provenance = skill.get("provenance", skill)
     errors = []
+    parameters = provenance.get("parameters")
+    if parameters is None:  # Backward-compatible audit for the frozen original probe.
+        parameters = {"lift_z_command": .05, "max_lift_steps": 8,
+                      "lift_target_m": .02, "native_reserve_steps": 20,
+                      "max_manual_actions": 14, "trigger_remaining_steps": 39}
+    expected_keys = {"lift_z_command", "max_lift_steps", "lift_target_m",
+                     "native_reserve_steps", "max_manual_actions",
+                     "trigger_remaining_steps"}
+    valid_parameters = (isinstance(parameters, dict) and set(parameters) == expected_keys
+        and type(parameters["lift_z_command"]) in (int, float)
+        and math.isfinite(parameters["lift_z_command"])
+        and 0 < parameters["lift_z_command"] <= .2
+        and type(parameters["max_lift_steps"]) is int
+        and 1 <= parameters["max_lift_steps"] <= 20
+        and type(parameters["lift_target_m"]) in (int, float)
+        and math.isfinite(parameters["lift_target_m"])
+        and 0 < parameters["lift_target_m"] <= .025
+        and type(parameters["native_reserve_steps"]) is int
+        and 20 <= parameters["native_reserve_steps"] <= 80
+        and parameters["max_manual_actions"] == 4 + parameters["max_lift_steps"] + 2
+        and parameters["trigger_remaining_steps"] == 5 + parameters["max_manual_actions"]
+            + parameters["native_reserve_steps"])
+    if not valid_parameters:
+        errors.append("invalid response-probe provenance parameters")
+        parameters = {"max_manual_actions": 0, "native_reserve_steps": CAP}
     if provenance.get("kind") != "pi05_response_probe_v1":
         errors.append("probe provenance kind mismatch")
     if provenance.get("execution_reconciled") is not True:
@@ -49,8 +75,11 @@ def manual_info(episode: dict) -> tuple[int | None, int, list[str], list[str]]:
     kinds = [row.get("kind") for row in manual]
     if any(kind not in {"close", "lift", "settle", "reopen"} for kind in kinds):
         errors.append("unknown manual action kind")
-    if (provenance.get("manual_actions_emitted") not in range(15)
-            or provenance.get("manual_actions_emitted") != len(emitted_manual) or len(manual) > 14):
+    maximum = parameters["max_manual_actions"]
+    reserve = parameters["native_reserve_steps"]
+    if (provenance.get("manual_actions_emitted") not in range(maximum + 1)
+            or provenance.get("manual_actions_emitted") != len(emitted_manual)
+            or len(manual) > maximum):
         errors.append("manual action limit exceeded")
     steps = [row.get("expected_actual_step") for row in manual]
     if any(type(step) is not int for step in steps) or steps != sorted(set(steps)):
@@ -63,8 +92,8 @@ def manual_info(episode: dict) -> tuple[int | None, int, list[str], list[str]]:
     first = steps[0] if steps else None
     if first is not None and first % 5:
         errors.append("first manual step is not an empty five-action-cache boundary")
-    if first is not None and first + provenance.get("manual_actions_emitted", 99) + 20 > CAP:
-        errors.append("20-action natural reserve violated")
+    if first is not None and first + provenance.get("manual_actions_emitted", 99) + reserve > CAP:
+        errors.append(f"{reserve}-action natural reserve violated")
     if manual and not provenance.get("events"):
         errors.append("manual actions lack trigger event")
     executed_indices = {row.get("emission_index") for row in manual}
@@ -85,7 +114,7 @@ def manual_info(episode: dict) -> tuple[int | None, int, list[str], list[str]]:
         following = trace_by_step.get(step + 1) if type(step) is int else None
         if following is not None and not exact(following.get("state"), row.get("post_state8")):
             errors.append(f"manual post_state8 does not match next trace state at step {step}")
-    return first, len(manual), kinds, errors
+    return first, len(manual), kinds, parameters, errors
 
 
 def trace_prefix(episode: dict, stop: int | None):
@@ -104,7 +133,7 @@ def call_prefix(episode: dict, stop: int | None, field: str):
 
 
 def causal_pair(control: dict, probe: dict) -> dict:
-    first, manual_count, kinds, errors = manual_info(probe)
+    first, manual_count, kinds, parameters, errors = manual_info(probe)
     ctrace, ptrace = trace_prefix(control, first), trace_prefix(probe, first)
     if not exact(ctrace, ptrace):
         errors.append("pre-intervention action/state trace differs")
@@ -123,13 +152,14 @@ def causal_pair(control: dict, probe: dict) -> dict:
             errors.append("untriggered outcome differs")
     return {"triggered": first is not None, "first_manual_actual_step": first,
             "manual_actions_executed": manual_count, "manual_kinds": kinds,
+            "response_probe_parameters": parameters,
             "causal_gate_pass": not errors, "confounds": errors}
 
 
 def load(worker_roots: list[Path]) -> tuple[dict, list[str]]:
     episodes, errors, summary_count = {}, [], 0
-    if len(worker_roots) != 5:
-        errors.append("expected exactly five worker outputs")
+    if len(worker_roots) not in (4, 5):
+        errors.append("expected exactly four strong-probe or five legacy worker outputs")
     for root in worker_roots:
         controller = json.loads((root / "controller.json").read_text())
         batches = controller.get("batches", [])
@@ -181,8 +211,8 @@ def load(worker_roots: list[Path]) -> tuple[dict, list[str]]:
                 if slot in episodes:
                     raise ValueError(f"duplicate episode {slot}")
                 episodes[slot] = {"value": value, "row": row, "identity": manifest_identity}
-    if summary_count != 10:
-        errors.append("expected exactly ten batch summaries")
+    if summary_count != 2 * len(worker_roots):
+        errors.append("expected exactly two batch summaries per worker")
     return episodes, errors
 
 
@@ -215,7 +245,13 @@ def aggregate(worker_roots: list[Path]) -> dict:
         pairs.append({"init_id": key[0], "replicate_id": key[1], "control_success": cs,
                       "probe_success": ps, "outcome": label, **gate})
     hard = [row for row in pairs if row["init_id"] == 4]
+    parameter_sets = {json.dumps(row["response_probe_parameters"], sort_keys=True)
+                      for row in pairs}
+    if len(parameter_sets) > 1:
+        errors.append("response-probe parameters differ across paired records")
+    candidate = json.loads(next(iter(parameter_sets))) if len(parameter_sets) == 1 else None
     return {"schema": "pi05_response_probe.aggregate.v1", "complete": not errors,
+            "candidate": candidate,
             "coverage": {"expected_pairs": 19, "observed_pairs": len(pairs),
                          "episodes": len(episodes), "errors": errors},
             "hard_case_init4": {"pairs": len(hard),
