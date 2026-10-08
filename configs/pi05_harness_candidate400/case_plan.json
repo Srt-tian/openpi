@@ -1,0 +1,3205 @@
+{
+  "cases": [
+    {
+      "init_id": 0,
+      "joint_task_number": 0,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 0
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 0,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 0
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 0,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 0
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 0,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 0
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 0,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 0
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 0,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 0
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 0,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 0
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 0,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 0
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 0,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 0
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 0,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 0
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 1,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 1
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 1,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 1
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 1,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 1
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 1,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 1
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 1,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 1
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 1,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 1
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 1,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 1
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 1,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 1
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 1,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 1
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 1,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 1
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 2,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 2,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 2,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 2,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 2,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 2,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 2,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 2,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 2,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 2,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 3,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 3
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 3,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 3
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 3,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 3
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 3,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 3
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 3,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 3
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 3,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 3
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 3,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 3
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 3,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 3
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 3,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 3
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 3,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 3
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 4,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 4
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 4,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 4
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 4,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 4
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 4,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 4
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 4,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 4
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 4,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 4
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 4,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 4
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 4,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 4
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 4,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 4
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 4,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 4
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 5,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 5
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 5,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 5
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 5,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 5
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 5,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 5
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 5,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 5
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 5,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 5
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 5,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 5
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 5,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 5
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 5,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 5
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 5,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 5
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 6,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 6,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 6,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 6,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 6,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 6,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 6,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 6,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 6,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 6,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 7,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 7
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 7,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 7
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 7,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 7
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 7,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 7
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 7,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 7
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 7,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 7
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 7,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 7
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 7,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 7
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 7,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 7
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 7,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 7
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 8,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 8
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 8,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 8,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 8
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 8,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 8
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 8,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 8
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 8,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 8
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 8,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 8
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 8,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 8
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 8,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 8
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 8,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 8
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 9,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 9
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 9,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 9
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 9,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 9
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 9,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 9
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 9,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 9
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 9,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 9
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 9,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 9
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 9,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 9
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 9,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 9
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 9,
+      "official_cap": 220,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 9
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 10,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 10,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 10,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 10,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 10,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 10,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 10,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 10,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 10,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 10,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 11,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 1
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 11,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 1
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 11,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 1
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 11,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 1
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 11,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 1
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 11,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 1
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 11,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 1
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 11,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 1
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 11,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 1
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 11,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 1
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 12,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 2
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 12,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 2
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 12,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 2
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 12,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 2
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 12,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 2
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 12,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 2
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 12,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 2
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 12,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 2
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 12,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 2
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 12,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 2
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 13,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 3
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 13,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 3
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 13,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 3
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 13,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 3
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 13,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 3
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 13,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 3
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 13,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 3
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 13,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 3
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 13,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 3
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 13,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 3
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 14,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 14,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 14,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 14,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 14,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 14,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 14,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 14,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 14,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 14,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 15,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 5
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 15,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 5
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 15,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 5
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 15,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 5
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 15,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 5
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 15,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 5
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 15,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 5
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 15,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 5
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 15,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 5
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 15,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 5
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 16,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 6
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 16,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 6
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 16,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 6
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 16,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 6
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 16,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 6
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 16,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 6
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 16,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 6
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 16,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 6
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 16,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 6
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 16,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 6
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 17,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 7
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 17,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 7
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 17,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 7
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 17,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 7
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 17,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 7
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 17,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 7
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 17,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 7
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 17,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 7
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 17,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 7
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 17,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 7
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 18,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 18,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 18,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 18,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 18,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 18,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 18,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 18,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 18,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 18,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 19,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 9
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 19,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 9
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 19,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 9
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 19,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 9
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 19,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 9
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 19,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 9
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 19,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 9
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 19,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 9
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 19,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 9
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 19,
+      "official_cap": 280,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 9
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 20,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 0
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 20,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 0
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 20,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 0
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 20,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 0
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 20,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 0
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 20,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 0
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 20,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 0
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 20,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 0
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 20,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 0
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 20,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 0
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 21,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 1
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 21,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 1
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 21,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 1
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 21,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 1
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 21,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 1
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 21,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 1
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 21,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 1
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 21,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 1
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 21,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 1
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 21,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 1
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 22,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 22,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 22,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 22,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 22,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 22,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 22,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 22,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 22,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 22,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 23,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 3
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 23,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 3
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 23,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 3
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 23,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 3
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 23,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 3
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 23,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 3
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 23,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 3
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 23,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 3
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 23,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 3
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 23,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 3
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 24,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 4
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 24,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 4
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 24,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 4
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 24,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 4
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 24,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 4
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 24,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 4
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 24,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 4
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 24,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 4
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 24,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 4
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 24,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 4
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 25,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 5
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 25,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 5
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 25,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 5
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 25,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 5
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 25,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 5
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 25,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 5
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 25,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 5
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 25,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 5
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 25,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 5
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 25,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 5
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 26,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 26,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 26,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 26,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 26,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 26,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 26,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 26,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 26,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 26,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 27,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 7
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 27,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 7
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 27,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 7
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 27,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 7
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 27,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 7
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 27,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 7
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 27,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 7
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 27,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 7
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 27,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 7
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 27,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 7
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 28,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 8
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 28,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 28,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 8
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 28,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 8
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 28,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 8
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 28,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 8
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 28,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 8
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 28,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 8
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 28,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 8
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 28,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 8
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 29,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 9
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 29,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 9
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 29,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 9
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 29,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 9
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 29,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 9
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 29,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 9
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 29,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 9
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 29,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 9
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 29,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 9
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 29,
+      "official_cap": 300,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 9
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 30,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 30,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 30,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 30,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 30,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 30,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 30,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 30,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 30,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 30,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 31,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 1
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 31,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 1
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 31,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 1
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 31,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 1
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 31,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 1
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 31,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 1
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 31,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 1
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 31,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 1
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 31,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 1
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 31,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 1
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 32,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 2
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 32,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 2
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 32,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 2
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 32,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 2
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 32,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 2
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 32,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 2
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 32,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 2
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 32,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 2
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 32,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 2
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 32,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 2
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 33,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 3
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 33,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 3
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 33,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 3
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 33,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 3
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 33,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 3
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 33,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 3
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 33,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 3
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 33,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 3
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 33,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 3
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 33,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 3
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 34,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 34,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 34,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 34,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 34,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 34,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 34,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 34,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 34,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 34,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 35,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 5
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 35,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 5
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 35,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 5
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 35,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 5
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 35,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 5
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 35,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 5
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 35,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 5
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 35,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 5
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 35,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 5
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 35,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 5
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 36,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 6
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 36,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 6
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 36,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 6
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 36,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 6
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 36,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 6
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 36,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 6
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 36,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 6
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 36,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 6
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 36,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 6
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 36,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 6
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 37,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 7
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 37,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 7
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 37,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 7
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 37,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 7
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 37,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 7
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 37,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 7
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 37,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 7
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 37,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 7
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 37,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 7
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 37,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 7
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 38,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 38,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 38,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 38,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 38,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 38,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 38,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 38,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 38,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 38,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 0,
+      "joint_task_number": 39,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 9
+    },
+    {
+      "init_id": 1,
+      "joint_task_number": 39,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 9
+    },
+    {
+      "init_id": 2,
+      "joint_task_number": 39,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 9
+    },
+    {
+      "init_id": 3,
+      "joint_task_number": 39,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 9
+    },
+    {
+      "init_id": 4,
+      "joint_task_number": 39,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 9
+    },
+    {
+      "init_id": 5,
+      "joint_task_number": 39,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 9
+    },
+    {
+      "init_id": 6,
+      "joint_task_number": 39,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 9
+    },
+    {
+      "init_id": 7,
+      "joint_task_number": 39,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 9
+    },
+    {
+      "init_id": 8,
+      "joint_task_number": 39,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 9
+    },
+    {
+      "init_id": 9,
+      "joint_task_number": 39,
+      "official_cap": 520,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 9
+    }
+  ],
+  "schema": "pi05_harness_candidate400_cases.v1"
+}

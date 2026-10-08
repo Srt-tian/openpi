@@ -1,0 +1,605 @@
+{
+  "cases": [
+    {
+      "init_id": 0,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 1,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 3,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 4,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 5,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 6,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 7,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 8,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 9,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 2
+    },
+    {
+      "init_id": 0,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 1,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 3,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 4,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 5,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 6,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 7,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 8,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 9,
+      "replicate_id": 0,
+      "suite": "libero_spatial",
+      "task_id": 6
+    },
+    {
+      "init_id": 0,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 1,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 3,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 4,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 5,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 6,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 7,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 8,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 9,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 0
+    },
+    {
+      "init_id": 0,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 1,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 3,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 4,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 5,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 6,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 7,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 8,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 9,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 4
+    },
+    {
+      "init_id": 0,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 1,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 3,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 4,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 5,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 6,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 7,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 8,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 9,
+      "replicate_id": 0,
+      "suite": "libero_object",
+      "task_id": 8
+    },
+    {
+      "init_id": 0,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 1,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 3,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 4,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 5,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 6,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 7,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 8,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 9,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 2
+    },
+    {
+      "init_id": 0,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 1,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 3,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 4,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 5,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 6,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 7,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 8,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 9,
+      "replicate_id": 0,
+      "suite": "libero_goal",
+      "task_id": 6
+    },
+    {
+      "init_id": 0,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 1,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 3,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 4,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 5,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 6,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 7,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 8,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 9,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 0
+    },
+    {
+      "init_id": 0,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 1,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 3,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 4,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 5,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 6,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 7,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 8,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 9,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 4
+    },
+    {
+      "init_id": 0,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 1,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 2,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 3,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 4,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 5,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 6,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 7,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 8,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    },
+    {
+      "init_id": 9,
+      "replicate_id": 0,
+      "suite": "libero_10",
+      "task_id": 8
+    }
+  ],
+  "schema": "pi05_harness_cases.v1"
+}

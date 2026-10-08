@@ -1,0 +1,19 @@
+{
+  "batches": [
+    {
+      "cases": "configs/pi05_harness_candidate400/cases_worker0.json",
+      "mode": "harness",
+      "name": "worker0_control",
+      "registry": "configs/pi05_harness/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    },
+    {
+      "cases": "configs/pi05_harness_candidate400/cases_worker0.json",
+      "mode": "harness",
+      "name": "worker0_candidate",
+      "registry": "configs/pi05_harness_candidate400/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    }
+  ],
+  "schema": "pi05_harness_worker.v1"
+}

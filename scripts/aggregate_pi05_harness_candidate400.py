@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+"""Strict score and causal-attribution aggregation for paired LIBERO-400."""
+from __future__ import annotations
+import argparse, json
+from collections import Counter
+from pathlib import Path
+
+import aggregate_pi05_closed_dwell_lift as dwell
+import aggregate_pi05_response_probe as response
+from aggregate_pi05_goal3_phase_screen import initial_receipt, valid_initial
+
+ARMS=("control","candidate")
+SUITES=("libero_spatial","libero_object","libero_goal","libero_10")
+GOAL={"kind":"response_probe_v1","enabled":True,"lift_z_command":.2,
+      "max_lift_steps":20,"lift_target_m":.025,"native_reserve_steps":80,
+      "minimum_actual":100}
+LONG={"kind":"closed_dwell_lift_v1","enabled":True,"veto_native_upward_intent":True}
+
+def load_plan(path:Path,catalog_path:Path):
+    plan=json.loads(path.read_text()); catalog=json.loads(catalog_path.read_text())
+    rows={r["key"]:r for r in catalog.get("tasks",[])}; expected={}
+    if len(rows)!=40 or plan.get("schema")!="pi05_harness_candidate400_cases.v1":
+        raise ValueError("invalid catalog/case-plan schema")
+    for row in plan.get("cases",[]):
+        key=(row.get("suite"),row.get("task_id"),row.get("init_id"))
+        task=f"{key[0]}/{key[1]}"; joint=SUITES.index(key[0])*10+key[1] if key[0] in SUITES and type(key[1]) is int else -1
+        if (key in expected or task not in rows or type(key[2]) is not int or not 0<=key[2]<10
+                or row.get("replicate_id")!=0 or row.get("joint_task_number")!=joint
+                or row.get("official_cap")!=rows[task]["max_steps"]):
+            raise ValueError("case plan differs from official LIBERO-400 grid")
+        expected[key]={"joint":joint,"cap":rows[task]["max_steps"],"instruction":rows[task]["instruction"]}
+    if len(expected)!=400: raise ValueError("case plan is not exact LIBERO-400")
+    return expected
+
+def arm(name):
+    hits=[x for x in ARMS if x in name]
+    if len(hits)!=1: raise ValueError(f"batch name has no unique arm: {name}")
+    return hits[0]
+
+def provenance(value):
+    raw=value.get("runner",{}).get("report",{}).get("skills",{}).get("pi05",{})
+    return raw.get("provenance",raw)
+
+def case_key(case,expected):
+    key=(case.get("suite"),case.get("task_id"),case.get("init_id")); spec=expected.get(key)
+    ambient=7+spec["joint"]*50+key[2] if spec else None
+    if (spec is None or case.get("replicate_id")!=0 or case.get("joint_task_number")!=spec["joint"]
+            or case.get("ambient_seed")!=ambient or case.get("policy_seed")!=ambient):
+        raise ValueError("case identity/seed differs from frozen plan")
+    return key
+
+def audit_common(value,which,spec,identity,batch:Path):
+    errors=[]; report=value.get("runner",{}).get("report",{}); trace=report.get("trace",[])
+    stages=value.get("harness",{}).get("stages",[]); env=report.get("environment",{})
+    cap_valid=(type(report.get("steps")) is int and report["steps"]==len(trace)
+        and 0<len(trace)<=spec["cap"] and [r.get("step") for r in trace]==list(range(len(trace))))
+    if not cap_valid: errors.append("trace/cap invalid")
+    harness_valid=(value.get("harness",{}).get("remember")==[] and len(stages)==1
+        and (stages[0].get("skill"),stages[0].get("instruction"),stages[0].get("max_steps"),
+             stages[0].get("until"),stages[0].get("on_timeout")) == ("pi05",spec["instruction"],spec["cap"],None,"abort")
+        and not any(r.get("stage")!=0 or r.get("skill")!="pi05" for r in trace))
+    if not harness_valid: errors.append("original harness invalid")
+    asset=env.get("init_asset",{})
+    source_valid=(env.get("kind")=="pi05_official_libero" and env.get("step_cap")==spec["cap"]
+            and env.get("success_decision_source")=="official_libero_env.step.done"
+            and isinstance(asset.get("sha256"),str) and len(asset["sha256"])==64)
+    if not source_valid:
+        errors.append("environment source invalid")
+    video=value.get("video",{}); video_status={"written":video.get("written"),"path":video.get("path")}
+    video_valid=(video.get("written") is True and isinstance(video.get("path"),str)
+        and Path(video["path"]).name==video["path"] and (batch/"videos"/video["path"]).is_file())
+    if not video_valid: errors.append("video receipt/file invalid")
+    calls=value.get("runner",{}).get("policy_calls",[]); receipts=value.get("runner",{}).get("payload_hashes",[])
+    if not calls or len(calls)!=len(receipts): errors.append("policy call/hash coverage invalid")
+    seed=value.get("case",{}).get("policy_seed")
+    for i,(call,receipt) in enumerate(zip(calls,receipts)):
+        if (call.get("inference_call")!=i or receipt.get("inference_call")!=i
+                or call.get("policy_seed")!=seed+i*1000003 or receipt.get("policy_seed")!=seed+i*1000003
+                or call.get("metadata")!=identity or call.get("response_valid") is not True
+                or receipt.get("status")!="ok"):
+            errors.append("policy source/seed/receipt invalid");break
+    task=f'{value.get("case",{}).get("suite")}/{value.get("case",{}).get("task_id")}'
+    expected_control=GOAL if which=="candidate" and task=="libero_goal/3" else LONG if which=="candidate" and task=="libero_10/8" else {"kind":"response_probe_v1","enabled":False}
+    if value.get("pi05_control")!=expected_control: errors.append("task control snapshot invalid")
+    return errors,video_status,{"cap_valid":cap_valid,"harness_valid":harness_valid,
+                                "source_valid":source_valid,"video_valid":video_valid}
+
+def pair_gate(control,candidate,key,identity=None):
+    task=f"{key[0]}/{key[1]}"
+    if task=="libero_goal/3":
+        _,_,_,_,audit_errors=response.manual_info(candidate)
+        gate=response.causal_pair(control,candidate)
+        return audit_errors,gate["causal_gate_pass"],gate["confounds"],gate.get("triggered")
+    if task=="libero_10/8":
+        confounds=dwell.causal(control,candidate)
+        audit=[] if identity is None else dwell.audit_episode(candidate,"assist",identity)
+        return audit,not confounds,confounds,provenance(candidate).get("first_changed_action_step") is not None
+    cr,ar=control["runner"],candidate["runner"]
+    equal=(cr.get("report",{}).get("trace")==ar.get("report",{}).get("trace")
+           and cr.get("policy_calls")==ar.get("policy_calls") and cr.get("payload_hashes")==ar.get("payload_hashes"))
+    outcomes=(cr.get("report",{}).get("success"),cr.get("report",{}).get("status"))==(ar.get("report",{}).get("success"),ar.get("report",{}).get("status"))
+    confounds=[] if equal and outcomes else ["unchanged-task full evidence/outcome differs"]
+    return [],not confounds,confounds,False
+
+def summarize(rows):
+    outcomes=Counter(r["outcome"] for r in rows)
+    return {"pairs":len(rows),"control_successes":sum(r["control_success"] for r in rows),
+            "candidate_successes":sum(r["candidate_success"] for r in rows),"paired_outcomes":dict(outcomes)}
+
+def aggregate(roots,case_plan,catalog):
+    expected=load_plan(case_plan,catalog); episodes={}; structural=[]; summaries=0
+    if len(roots)!=4: structural.append("expected exactly four workers")
+    for root in roots:
+        controller=json.loads((root/"controller.json").read_text()); batches=controller.get("batches",[])
+        if (controller.get("status")!="complete" or len(batches)!=2 or [arm(x.get("name","")) for x in batches]!=list(ARMS)
+                or len({x.get("server_pid") for x in batches})!=1 or batches[1].get("service_reused_from_previous_batch") is not True): structural.append(f"{root}: controller/service invalid")
+        for sp in sorted(root.glob("*/summary.json")):
+            summaries+=1;which=arm(sp.parent.name);summary=json.loads(sp.read_text());manifest=json.loads((sp.parent/"manifest.json").read_text());identity=manifest.get("verified_service_identity")
+            if (summary.get("mode")!="harness" or summary.get("complete") is not True or summary.get("errors")!=0 or summary.get("planned")!=summary.get("completed")
+                    or manifest.get("fixed_policy_id")!="base" or not isinstance(identity,dict) or identity.get("policy_id")!="base"
+                    or identity.get("base_graph")!="original_pi05_libero" or identity.get("adapter_sha256") is not None): structural.append(f"{sp}: summary/identity invalid")
+            for row in summary.get("cases",[]):
+                try:key=case_key(row,expected)
+                except ValueError as error:structural.append(f"{sp}: {error}");continue
+                ep=(sp.parent/row["episode"]).resolve()
+                if not ep.is_relative_to(sp.parent.resolve()):structural.append(f"{sp}: path escape");continue
+                value=json.loads(ep.read_text())
+                try:actual=case_key(value.get("case",{}),expected)
+                except ValueError as error:structural.append(f"{ep}: {error}");continue
+                if actual!=key or row.get("success") is not value["runner"]["report"].get("success") or row.get("steps")!=value["runner"]["report"].get("steps"):structural.append(f"{ep}: summary mismatch")
+                errs,video,flags=audit_common(value,which,expected[key],identity,sp.parent)
+                structural += [f"{ep}: {e}" for e in errs]
+                slot=(which,key)
+                if slot in episodes:raise ValueError(f"duplicate {slot}")
+                episodes[slot]={"value":value,"identity":identity,"video":video,"flags":flags}
+    if summaries!=8:structural.append("expected eight summaries")
+    wanted={(a,k) for a in ARMS for k in expected}
+    if set(episodes)!=wanted:structural.append("coverage is not exact 400 pairs x 2")
+    pairs=[]
+    for key in sorted(expected):
+        if any((a,key) not in episodes for a in ARMS):continue
+        c,a=episodes["control",key],episodes["candidate",key];cv,av=c["value"],a["value"]
+        ci,ai=initial_receipt(cv),initial_receipt(av);noise_ok=valid_initial(ci) and valid_initial(ai) and ci==ai
+        identity_ok=c["identity"]==a["identity"]
+        seed_ok=(cv["case"]["policy_seed"],cv["case"]["ambient_seed"])==(av["case"]["policy_seed"],av["case"]["ambient_seed"])
+        audit_errors,causal_ok,confounds,triggered=pair_gate(cv,av,key,a["identity"]);structural += [f"{key}: {e}" for e in audit_errors]
+        cs,vs=bool(cv["runner"]["report"]["success"]),bool(av["runner"]["report"]["success"])
+        label="both" if cs and vs else "recovered" if vs else "regressed" if cs else "neither"
+        pairs.append({"suite":key[0],"task_id":key[1],"init_id":key[2],"control_success":cs,
+            "candidate_success":vs,"outcome":label,"triggered":triggered,
+            "source_identity_equal":identity_ok,"paired_seeds_equal":seed_ok,"initial_noise_equal":noise_ok,
+            "cap_valid":c["flags"]["cap_valid"] and a["flags"]["cap_valid"],
+            "harness_valid":c["flags"]["harness_valid"] and a["flags"]["harness_valid"],
+            "source_receipts_valid":c["flags"]["source_valid"] and a["flags"]["source_valid"],
+            "video_status":{"control":{**c["video"],"valid":c["flags"]["video_valid"]},
+                            "candidate":{**a["video"],"valid":a["flags"]["video_valid"]}},
+            "causal_gate_pass":causal_ok and identity_ok and seed_ok and noise_ok,
+            "causal_confounds":confounds + ([] if noise_ok else ["initial observation/noise differs"])})
+    score_complete=not structural and len(pairs)==400
+    exact=score_complete and all(x["causal_gate_pass"] for x in pairs)
+    by_suite={s:summarize([x for x in pairs if x["suite"]==s]) for s in SUITES}
+    by_task={f"{s}/{t}":summarize([x for x in pairs if x["suite"]==s and x["task_id"]==t]) for s in SUITES for t in range(10)}
+    return {"schema":"pi05_harness_candidate400.aggregate.v1","score_complete":score_complete,
+        "exact_prefix_attribution_complete":exact,"coverage":{"expected_pairs":400,"observed_pairs":len(pairs),"episodes":len(episodes),"structural_errors":structural},
+        "score":summarize(pairs),"by_suite":by_suite,"by_task":by_task,
+        "causal_flags":{"passing":sum(x["causal_gate_pass"] for x in pairs),"failing":sum(not x["causal_gate_pass"] for x in pairs)},"pairs":pairs}
+
+if __name__=="__main__":
+    p=argparse.ArgumentParser();p.add_argument("--worker-output",action="append",type=Path,required=True);p.add_argument("--case-plan",type=Path,required=True);p.add_argument("--task-catalog",type=Path,required=True);p.add_argument("--output",type=Path,required=True);a=p.parse_args()
+    if a.output.exists():raise FileExistsError("output is create-only")
+    result=aggregate(a.worker_output,a.case_plan,a.task_catalog);a.output.parent.mkdir(parents=True,exist_ok=True);a.output.write_text(json.dumps(result,indent=2,sort_keys=True)+"\n");raise SystemExit(0 if result["score_complete"] else 1)
