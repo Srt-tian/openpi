@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import math
 from collections import deque
 from types import MappingProxyType
 from typing import Any, Mapping
@@ -24,6 +25,27 @@ CONTEXT_KEYS = frozenset({
     "actual_executed", "remaining_episode", "stage_executed",
     "remaining_stage", "stage_index",
 })
+PARAMETER_DEFAULTS = {"lift_z_command": .05, "max_lift_steps": 8,
+                      "lift_target_m": .02, "native_reserve_steps": 20}
+
+
+def validated_parameters(values: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """Return normalized constructor parameters, rejecting unknown or unsafe values."""
+    values = {} if values is None else dict(values)
+    if not set(values) <= set(PARAMETER_DEFAULTS):
+        raise ValueError("unknown PI0.5 response-probe parameter")
+    result = {**PARAMETER_DEFAULTS, **values}
+    for name, upper in (("lift_z_command", .2), ("lift_target_m", .025)):
+        value = result[name]
+        if type(value) not in (int, float) or not math.isfinite(value) or not 0 < value <= upper:
+            raise ValueError(f"{name} must be finite and in (0, {upper}]")
+        result[name] = float(value)
+    for name, lower, upper in (("max_lift_steps", 1, 20),
+                               ("native_reserve_steps", 20, 80)):
+        value = result[name]
+        if type(value) is not int or not lower <= value <= upper:
+            raise ValueError(f"{name} must be an integer in [{lower}, {upper}]")
+    return result
 
 
 def _vector(value: Any, size: int, label: str) -> np.ndarray:
@@ -101,8 +123,19 @@ def response_probe_environment_factory(factory: Any, probe: "Pi05ResponseProbeSk
 class Pi05ResponseProbeSkill:
     """One-shot mechanical response probe preserving native PI0.5 chunks."""
 
-    def __init__(self, delegate: Any):
+    def __init__(self, delegate: Any, *, lift_z_command: float = .05,
+                 max_lift_steps: int = 8, lift_target_m: float = .02,
+                 native_reserve_steps: int = 20):
+        parameters = validated_parameters({"lift_z_command": lift_z_command,
+            "max_lift_steps": max_lift_steps, "lift_target_m": lift_target_m,
+            "native_reserve_steps": native_reserve_steps})
         self.delegate = delegate
+        self.lift_z_command = parameters["lift_z_command"]
+        self.max_lift_steps = parameters["max_lift_steps"]
+        self.lift_target_m = parameters["lift_target_m"]
+        self.native_reserve_steps = parameters["native_reserve_steps"]
+        self.max_manual_actions = 4 + max_lift_steps + 2
+        self.trigger_remaining = GRACE + self.max_manual_actions + native_reserve_steps
         self.provenance: dict[str, Any] = {}
         self._active = False
 
@@ -194,20 +227,20 @@ class Pi05ResponseProbeSkill:
         self._record_emission(value, self._phase)
         self._phase_emitted += 1
         self._manual_emitted += 1
-        if self._manual_emitted > MAX_MANUAL:
+        if self._manual_emitted > self.max_manual_actions:
             raise AssertionError("PI0.5 response probe exceeded its manual-action bound")
         return value
 
     def _budget_ok(self, manual_remaining: int) -> bool:
         assert self._context is not None
-        required = manual_remaining + NATIVE_RESERVE
+        required = manual_remaining + self.native_reserve_steps
         return min(self._context["remaining_episode"], self._context["remaining_stage"]) >= required
 
     def _manual_or_fallback(self, observation: Any, instruction: str, memory: dict[str, Any]):
         while True:
             if self._phase == "close":
                 if self._phase_emitted < 4:
-                    if not self._budget_ok((4 - self._phase_emitted) + MAX_LIFT + 2):
+                    if not self._budget_ok((4 - self._phase_emitted) + self.max_lift_steps + 2):
                         break
                     return self._manual_action(+1.)
                 aperture = self._aperture(self._state)
@@ -222,12 +255,14 @@ class Pi05ResponseProbeSkill:
                     self._phase, self._phase_emitted = "reopen", 0
                     event["close_response"] = False
             elif self._phase == "lift":
-                if self._phase_emitted >= MAX_LIFT or float(self._state[2]) - self._lift_start_z >= .02:
+                if (self._phase_emitted >= self.max_lift_steps
+                        or float(self._state[2]) - self._lift_start_z + 1e-12
+                        >= self.lift_target_m):
                     self._phase, self._phase_emitted = "settle", 0
                     continue
-                if not self._budget_ok((MAX_LIFT - self._phase_emitted) + 2):
+                if not self._budget_ok((self.max_lift_steps - self._phase_emitted) + 2):
                     break
-                return self._manual_action(+1., .05)
+                return self._manual_action(+1., self.lift_z_command)
             elif self._phase == "settle":
                 if self._phase_emitted < 2:
                     if not self._budget_ok(2 - self._phase_emitted):
@@ -258,7 +293,7 @@ class Pi05ResponseProbeSkill:
             return self._manual_or_fallback(observation, instruction, memory)
         if self._grace_pending:
             self._grace_pending = False
-            guard = self._guard(MAX_MANUAL + NATIVE_RESERVE)
+            guard = self._guard(self.max_manual_actions + self.native_reserve_steps)
             if guard is not None:
                 self._events[-1].update(status="manual_started", recheck=guard)
                 self._phase, self._phase_emitted, self._manual_emitted = "close", 0, 0
@@ -266,7 +301,7 @@ class Pi05ResponseProbeSkill:
                 return self._manual_or_fallback(observation, instruction, memory)
             self._events[-1]["status"] = "permanent_veto_recheck_failed"
         elif not self._attempted:
-            guard = self._guard(TRIGGER_REMAINING)
+            guard = self._guard(self.trigger_remaining)
             if guard is not None:
                 self._attempted, self._grace_pending = True, True
                 self._events.append({"event_index": 0, "status": "five_native_grace",
@@ -305,6 +340,12 @@ class Pi05ResponseProbeSkill:
         finally:
             self.provenance = {"kind": "pi05_response_probe_v1",
                 "delegate": copy.deepcopy(getattr(self.delegate, "provenance", {})),
+                "parameters": {"lift_z_command": self.lift_z_command,
+                    "max_lift_steps": self.max_lift_steps,
+                    "lift_target_m": self.lift_target_m,
+                    "native_reserve_steps": self.native_reserve_steps,
+                    "max_manual_actions": self.max_manual_actions,
+                    "trigger_remaining_steps": self.trigger_remaining},
                 "mechanical_proxy_only": True, "grasp_or_task_success_certificate": False,
                 "attempted": self._attempted, "events": copy.deepcopy(self._events),
                 "reset_state8": copy.deepcopy(self._reset_states),

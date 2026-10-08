@@ -248,10 +248,20 @@ def load_task_control_snapshot(registry_path: Path | str) -> dict[str, Any]:
             control = {"kind": "response_probe_v1", "enabled": False}
         else:
             raw = config["pi05_control"]
-            response_valid = (isinstance(raw, dict)
-                and set(raw) == {"kind", "enabled"}
-                and raw.get("kind") == "response_probe_v1"
-                and type(raw.get("enabled")) is bool)
+            response_valid = False
+            if (isinstance(raw, dict) and {"kind", "enabled"} <= set(raw)
+                    and raw.get("kind") == "response_probe_v1"
+                    and type(raw.get("enabled")) is bool
+                    and set(raw) <= {"kind", "enabled", *response_probe.PARAMETER_DEFAULTS}):
+                parameters = {name: raw[name] for name in response_probe.PARAMETER_DEFAULTS
+                              if name in raw}
+                if raw["enabled"] or not parameters:
+                    try:
+                        response_probe.validated_parameters(parameters)
+                    except ValueError:
+                        pass
+                    else:
+                        response_valid = True
             lease_valid = (isinstance(raw, dict)
                 and set(raw) == {"kind", "enabled", "instruction", "lease_steps"}
                 and raw.get("kind") == instruction_lease.KIND
@@ -559,7 +569,9 @@ def _run_new_loop(
         policy_seed=case["policy_seed"],
     )
     if control.get("enabled") and control.get("kind") == "response_probe_v1":
-        skill = response_probe.Pi05ResponseProbeSkill(delegate)
+        parameters = {name: control[name] for name in response_probe.PARAMETER_DEFAULTS
+                      if name in control}
+        skill = response_probe.Pi05ResponseProbeSkill(delegate, **parameters)
         environment_factory = response_probe.response_probe_environment_factory(
             base_environment_factory, skill
         )

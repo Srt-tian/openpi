@@ -1,0 +1,55 @@
+{
+  "evidence": {
+    "forbidden_oracles": [
+      "object_state",
+      "grasp_state",
+      "init_id_routing"
+    ],
+    "full_repeat_verified": {
+      "base": "103/140",
+      "plugins": "106/140"
+    },
+    "observations": {
+      "old_probe_actual_lift_approx_m": 0.0038,
+      "old_probe_commanded_lift_m": 0.05,
+      "old_probe_hard_failure_cue_coverage": "9/9",
+      "old_probe_hard_success_cue_coverage": "0/1"
+    },
+    "scope": "posthoc_repeat_diagnostic_not_full400_score",
+    "shared_hard_case": {
+      "base": "1/10",
+      "plugin": "0/10"
+    }
+  },
+  "harness": {
+    "name": "pi05-base",
+    "remember": [],
+    "schema": 1,
+    "stages": [
+      {
+        "instruction": "open the top drawer and put the bowl inside",
+        "max_steps": 300,
+        "on_timeout": "abort",
+        "skill": "pi05",
+        "until": null
+      }
+    ]
+  },
+  "parent_sha256": "8f4079a3c03449f40c77beb9bad2990c9fb28b5d8bbf9496b4a49e5eb02bd4e0",
+  "pi05_control": {
+    "enabled": true,
+    "kind": "response_probe_v1",
+    "lift_target_m": 0.025,
+    "lift_z_command": 0.2,
+    "max_lift_steps": 20,
+    "native_reserve_steps": 80
+  },
+  "proposal": {
+    "candidate": "strong_response_probe_v1",
+    "rationale": "Stop on 0.025 m actual EEF rise or 20 lift actions; this is a mechanical response test, not a grasp or drawer-success certificate."
+  },
+  "reasoning": "Task-wide stronger response probe for goal/3 after the bounded probe's mechanical cue covered 9/9 hard failures but only lifted about 0.0038 m.",
+  "schema": 1,
+  "status": "unvalidated_research_probe",
+  "task": "libero_goal/3"
+}

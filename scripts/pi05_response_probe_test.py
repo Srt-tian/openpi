@@ -85,6 +85,77 @@ class Driver:
 
 
 class ResponseProbeTest(unittest.TestCase):
+    def test_missing_parameters_preserve_defaults_and_invalid_values_fail(self):
+        skill = probe.Pi05ResponseProbeSkill(Delegate())
+        self.assertEqual((skill.lift_z_command, skill.max_lift_steps,
+                          skill.lift_target_m, skill.native_reserve_steps),
+                         (.05, 8, .02, 20))
+        invalid = ({"lift_z_command": 0}, {"lift_z_command": .2001},
+                   {"max_lift_steps": True}, {"max_lift_steps": 21},
+                   {"lift_target_m": .026}, {"native_reserve_steps": 19},
+                   {"native_reserve_steps": 81})
+        for kwargs in invalid:
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                probe.Pi05ResponseProbeSkill(Delegate(), **kwargs)
+
+    @staticmethod
+    def strong_driver():
+        return Driver(probe.Pi05ResponseProbeSkill(
+            Delegate(), lift_z_command=.2, max_lift_steps=20,
+            lift_target_m=.025, native_reserve_steps=80))
+
+    def enter_strong_lift(self):
+        driver = self.strong_driver()
+        driver.prepare_guard()
+        driver.execute(driver.act(111))
+        for aperture in (.078, .074, .070, .065):
+            driver.execute(driver.act(106), [state(aperture=aperture)])
+        return driver
+
+    def test_strong_probe_stops_on_actual_twenty_five_mm_feedback(self):
+        driver = self.enter_strong_lift()
+        first = driver.act(102)
+        np.testing.assert_array_equal(first[0], [0, 0, .2, 0, 0, 0, 1])
+        driver.execute(first, [state(z=.425, aperture=.065)])
+        settle = driver.act(101)
+        np.testing.assert_array_equal(settle[0], [0, 0, 0, 0, 0, 0, 1])
+        self.assertEqual(driver.skill._manual_emitted, 6)  # 4 close + 1 lift + 1 settle
+
+    def test_strong_probe_caps_lift_at_twenty_actions(self):
+        driver = self.enter_strong_lift()
+        for _ in range(20):
+            action = driver.act(200)
+            self.assertEqual(float(action[0, 2]), .2)
+            driver.execute(action, [state(z=.4, aperture=.065)])
+        settle = driver.act(200)
+        self.assertEqual(float(settle[0, 2]), 0.)
+        self.assertEqual(driver.skill._manual_emitted, 25)
+
+    def test_strong_probe_requires_eighty_step_native_reserve(self):
+        short = self.strong_driver()
+        short.prepare_guard()
+        self.assertEqual(short.act(110).shape, (5, 7))
+        self.assertFalse(short.skill._attempted)
+        exact = self.strong_driver()
+        exact.prepare_guard()
+        self.assertEqual(exact.act(111).shape, (5, 7))
+        self.assertTrue(exact.skill._attempted)
+
+    def test_strong_manual_emission_truncation_and_parameters_are_provenant(self):
+        driver = self.enter_strong_lift()
+        lift = driver.act(102)
+        self.assertEqual(lift.shape, (1, 7))
+        trace = tuple((row["expected_actual_step"], row["stage_index"])
+                      for row in driver.skill._executed)
+        driver.skill.finalize_episode(trace)
+        emitted = driver.skill.provenance["emitted_rows"][-1]
+        self.assertEqual(emitted["kind"], "lift")
+        self.assertTrue(emitted["truncated_before_execution"])
+        self.assertEqual(driver.skill.provenance["parameters"], {
+            "lift_z_command": .2, "max_lift_steps": 20,
+            "lift_target_m": .025, "native_reserve_steps": 80,
+            "max_manual_actions": 26, "trigger_remaining_steps": 111})
+
     def test_guard_false_real_runner_matches_native_actions_and_seeds(self):
         root = Path(os.environ.get(
             "PI05_TEST_PHYSICALRSI_ROOT",

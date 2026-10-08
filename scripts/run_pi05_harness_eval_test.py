@@ -102,6 +102,30 @@ class CliValidationTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "pi05_control"):
                     cli.load_task_control_snapshot(registry)
 
+    def test_response_probe_parameters_are_optional_strict_and_enabled_only(self):
+        for control in (
+            {"kind": "response_probe_v1", "enabled": True},
+            {"kind": "response_probe_v1", "enabled": True,
+             "lift_z_command": .2, "max_lift_steps": 20,
+             "lift_target_m": .025, "native_reserve_steps": 80},
+        ):
+            with self.subTest(control=control), tempfile.TemporaryDirectory() as directory:
+                registry = self.write_control_registry(directory, {"pi05_control": control})
+                self.assertEqual(cli.load_task_control_snapshot(registry)["controls"]
+                                 ["libero_goal/3"], control)
+        invalid = [
+            {"kind": "response_probe_v1", "enabled": False, "max_lift_steps": 8},
+            {"kind": "response_probe_v1", "enabled": True, "lift_z_command": 0},
+            {"kind": "response_probe_v1", "enabled": True, "max_lift_steps": True},
+            {"kind": "response_probe_v1", "enabled": True, "lift_target_m": .026},
+            {"kind": "response_probe_v1", "enabled": True, "native_reserve_steps": 81},
+        ]
+        for control in invalid:
+            with self.subTest(control=control), tempfile.TemporaryDirectory() as directory:
+                registry = self.write_control_registry(directory, {"pi05_control": control})
+                with self.assertRaisesRegex(ValueError, "pi05_control"):
+                    cli.load_task_control_snapshot(registry)
+
     def test_instruction_lease_control_is_exact_and_bounded(self):
         valid = {"pi05_control": {"kind": "instruction_lease_v1", "enabled": True,
                                   "instruction": "open the top drawer", "lease_steps": 40}}
