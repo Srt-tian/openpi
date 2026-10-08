@@ -64,4 +64,5 @@ def test_short_episode_fails_and_fixed_holdout_is_balanced():
 def test_holdout_rng_is_fixed_per_suite():
  import jax
  a=target.fixed_eval_rng(42,"spatial");b=target.fixed_eval_rng(42,"spatial");c=target.fixed_eval_rng(42,"object")
- assert np.array_equal(np.asarray(a),np.asarray(b)) and not np.array_equal(np.asarray(a),np.asarray(c))
+ assert np.array_equal(np.asarray(jax.random.key_data(a)),np.asarray(jax.random.key_data(b)))
+ assert not np.array_equal(np.asarray(jax.random.key_data(a)),np.asarray(jax.random.key_data(c)))

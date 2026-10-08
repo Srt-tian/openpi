@@ -202,9 +202,10 @@ def test_masked_nan_tail_cannot_change_valid_outputs_with_learned_residual():
     head=PhysicalResidualHead(5,width=8,horizon=3,ffn_dim=16,rngs=nnx.Rngs(16))
     head.residual_out.kernel.value=jnp.full_like(head.residual_out.kernel.value,.02)
     hidden,state,velocity,time=inputs();mask=jnp.array([[1,1,0],[1,1,0]],dtype=jnp.float32)
-    clean=head(hidden,state,velocity,time,mask)
+    chunk_time=jnp.broadcast_to(time[:,None],(2,3))
+    clean=head(hidden,state,velocity,chunk_time,mask)
     dirty=head(hidden.at[:,2].set(jnp.nan),state,velocity.at[:,2].set(jnp.nan),
-               time.at[:,2].set(jnp.nan),mask)
+               chunk_time.at[:,2].set(jnp.nan),mask)
     np.testing.assert_array_equal(dirty["residual7"][:,2],0)
     np.testing.assert_allclose(dirty["residual7"][:,:2],clean["residual7"][:,:2],rtol=0,atol=0)
     np.testing.assert_allclose(dirty["surrogate_gain_gate"],clean["surrogate_gain_gate"],rtol=0,atol=0)

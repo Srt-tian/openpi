@@ -148,8 +148,13 @@ def main():
       "base_params_content_sha256":base_content_hash,"norm_stats_sha256":norm_hash,
       "base":{"graph":"native_pi05_libero","frozen":True,"dtype":"bfloat16"},"head_dtype":"float32",
       "loss":{"fm":1.0,"paired_regret":1.0,"rho":.05,"correction_norm":.001,"gate_bce":.1,
-        "groups":"equal xyz_mean/rotation_mean/gripper"},
-      "gate_semantics":"FM surrogate; not rollout success"};manifest["manifest_sha256"]=canonical_hash(manifest)
+        "groups":"equal xyz_mean/rotation_mean/gripper","gate_execution":"raw learned gate in all phases",
+        "gate_bce_warmup":"auxiliary BCE disabled for first 500 per-suite updates only",
+        "gate_target":"detached masked physical-group-weighted analytic optimal chunk blend strength"},
+      "sampling":{"train":"complete horizon-10 chunks only","holdout":"fixed 80 complete chunks per suite",
+        "terminal_actions_covered":True,"eval_rng":"fixed per suite across diagnostics"},
+      "gate_semantics":"calibrated physical-error blend strength; not success probability",
+      "optimizer_restore":"raw payload leaf shape and dtype checked against template"};manifest["manifest_sha256"]=canonical_hash(manifest)
     manifest_path=args.output_dir/"run_manifest.json"
     if args.resume:
         if json.loads(manifest_path.read_text())!=manifest:raise ValueError("resume manifest mismatch")

@@ -3,8 +3,8 @@
   "status": "prototype_only",
   "authority": {
     "repository": "https://github.com/Srt-tian/openpi.git",
-    "branch": "feature/pi05-plugin-v2",
-    "base_commit": "208a1382959b934c833ee0b4aa9514986c5fde44"
+    "branch": "feature/pi05-plugin-v2-gate-consistency",
+    "base_commit": "c3df9d92a929b44a97e7d5063102bd5f7cbe749c"
   },
   "scope": {
     "benchmark": "LIBERO",
@@ -29,7 +29,7 @@
     "residual_final_projection_init": "zero",
     "residual_parameterization": "1.0 * tanh(raw_residual) in normalized flow velocity units",
     "residual_bound_is_physical_safety_guarantee": false,
-    "initial_surrogate_gate_probability": 0.25,
+    "initial_chunk_blend_strength": 0.25,
     "gate_shape": "one chunk-level scalar pooled from temporal trunk and broadcast over horizon",
     "frozen_inputs": ["base_action_hidden", "base_velocity", "target_velocity"]
   },
@@ -41,10 +41,10 @@
     "aggregation": "equal-weight per-task macro average after physical grouping",
     "paired_relative_regret": "relu(error_phi - error_base + rho * error_base)",
     "correction_norm_weight_default": 0.001,
-    "gate_target": "detached improvement of ungated residual relative to frozen base",
-    "gate_semantics": "surrogate teacher-relative competence; not rollout success",
-    "gate_training": "first 500 suite updates forced to 1 with BCE weight 0; then stop-gradient max(gate,0.25) on FM path and detached gain-label BCE weight 0.1",
-    "gate_eval": "learned chunk gate without training floor"
+    "gate_target": "detached masked physical-group-weighted analytic optimal chunk blend strength clipped to [0,1]",
+    "gate_semantics": "calibrated physical-error blend strength; not a success probability",
+    "gate_training": "raw learned gate is used by FM and paired regret in every phase; only auxiliary BCE is disabled for the first 500 suite updates",
+    "gate_eval": "same raw learned chunk gate as training, without a separate floor or warmup path"
   },
   "sampler": {
     "training_data": "demonstration train split only",
@@ -53,7 +53,8 @@
     "samples_per_task": 4,
     "global_batch_size": 40,
     "deterministic": true,
-    "task_ids_retained_for_macro_loss": true
+    "task_ids_retained_for_macro_loss": true,
+    "training_chunks": "complete horizon-10 chunks only; terminal actions remain covered by the final valid start"
   },
   "training_protocol": {
     "task_name": "PI05-LIBERO-TEST-V2",
@@ -62,7 +63,8 @@
     "round_robin_order": ["spatial", "object", "goal", "long"],
     "seed": 42,
     "holdout_demos_per_task": 2,
-    "fixed_holdout_frames_per_suite": 80,
+    "fixed_holdout_complete_chunks_per_suite": 80,
+    "holdout_rng": "fixed per suite across diagnostics",
     "regular_bank_checkpoint_global_updates": [20000, 40000],
     "smoke_checkpoint": {"global_step": 4, "directory": "checkpoints_smoke", "regular_checkpoint": false},
     "holdout_every_global_updates": 2000,
@@ -76,7 +78,7 @@
   "integration": {
     "model_helper": "implemented_and_small_fixture_tested",
     "train_step": "single-host 8-device entry wired with explicit frozen base state arguments; full 8-GPU compile unverified",
-    "checkpoint_format": "four-head create-only bound checkpoint and strict resume wired",
+    "checkpoint_format": "four-head create-only bound checkpoint; strict head and optimizer leaf shape/dtype resume validation wired",
     "inference_hook": "opt-in cached-prefix solver and restored-suite smoke implemented; production serving integration pending",
     "full_model_bitwise_parity": "not_measured_without_full_weights; exact legacy-formula parity covered by small CPU fixture",
     "rollout_success": "not_measured"
