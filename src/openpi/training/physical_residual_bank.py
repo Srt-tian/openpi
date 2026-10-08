@@ -15,14 +15,30 @@ from typing import Any
 
 from flax import nnx, serialization
 import jax
+import jax.numpy as jnp
+import numpy as np
 import optax
 
 from openpi.training.physical_residual import PhysicalResidualHead, residual_training_loss
 from openpi.training.plugin_bank import _optimizer_from_bytes, _optimizer_to_bytes
 from openpi.training import sharding
+from openpi.models import model as model_api
+from openpi.training import plugin_bank
 
 SUITES = ("spatial", "object", "goal", "long")
 FORMAT = "pi05-physical-residual-head-bank-v1"
+
+
+def initialize_native_base(checkpoint_path: str, mesh):
+    """Restore the official native pi05_libero graph with no LoRA variables."""
+    from openpi.training import config as training_config
+    model_config = training_config.get_config("pi05_libero").model
+    abstract_model = nnx.eval_shape(model_config.create, jax.random.key(0))
+    graphdef, state = nnx.split(abstract_model)
+    restored = model_api.restore_params(checkpoint_path, restore_type=np.ndarray, dtype=jnp.bfloat16)
+    params = plugin_bank._materialize_params(state.to_pure_dict(), restored, seed=0)
+    state.replace_by_pure_dict(params)
+    return graphdef, jax.device_put(state, sharding.fsdp_sharding(state, mesh, log=True))
 
 
 def initialize_head_bank(feature_dim: int, seed: int, *, state_dim: int = 8, width: int = 256,
@@ -76,9 +92,9 @@ def update_selected_head(
 
 def make_sharded_head_step(base_graphdef, head_graphdef, tx, mesh):
     """Compile one head-only step with explicit frozen base states as arguments."""
-    def step(frozen_base, frozen_zero_lora, head_state, optimizer_state,
+    def step(frozen_base, head_state, optimizer_state,
              observation, actions, task_ids, valid_horizon, rng, suite_update):
-        base_model = nnx.merge(base_graphdef, frozen_base, frozen_zero_lora)
+        base_model = nnx.merge(base_graphdef, frozen_base)
         def loss_fn(candidate_state):
             head = nnx.merge(head_graphdef, candidate_state)
             return residual_training_loss(base_model, head, rng, observation, actions, task_ids,
@@ -93,9 +109,9 @@ def make_sharded_head_step(base_graphdef, head_graphdef, tx, mesh):
 
 
 def make_sharded_head_eval(base_graphdef, head_graphdef, mesh):
-    def evaluate(frozen_base, frozen_zero_lora, head_state, observation, actions,
+    def evaluate(frozen_base, head_state, observation, actions,
                  task_ids, valid_horizon, rng, suite_update):
-        base_model = nnx.merge(base_graphdef, frozen_base, frozen_zero_lora)
+        base_model = nnx.merge(base_graphdef, frozen_base)
         head = nnx.merge(head_graphdef, head_state)
         return residual_training_loss(base_model, head, rng, observation, actions, task_ids,
             num_tasks=10, valid_horizon=valid_horizon, train=False, suite_update=suite_update)

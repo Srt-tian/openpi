@@ -11,7 +11,8 @@
     "specializations": ["spatial", "object", "goal", "long"],
     "independent_instances": 4,
     "training_submitted": false,
-    "base_model_loaded_for_prototype_tests": false
+    "base_model_loaded_for_prototype_tests": false,
+    "base_graph": "native pi05_libero (no LoRA variables)"
   },
   "residual_head": {
     "physical_action_dimensions": 7,

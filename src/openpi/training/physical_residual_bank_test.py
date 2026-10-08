@@ -49,13 +49,13 @@ def test_selected_only_update_and_four_independent_heads(monkeypatch):
 
 def test_compiled_step_has_explicit_base_state_and_updates_head_only(monkeypatch):
     monkeypatch.setattr(model_api,"preprocess_observation",lambda key,obs,train:obs)
-    base_graphdef,base_state=nnx.split(_TinyBase());empty=nnx.State({})
+    base_graphdef,base_state=nnx.split(_TinyBase())
     head_graphdef,states=bank.initialize_head_bank(4,8,width=8,horizon=2,ffn_dim=16)
     tx=optax.adam(1e-3);opts=bank.initialize_optimizer_states(tx,states);mesh=sharding.make_mesh(1)
     fn=bank.make_sharded_head_step(base_graphdef,head_graphdef,tx,mesh)
     obs=_Obs(jnp.ones((10,32)));actions=jnp.ones((10,2,32));tasks=jnp.arange(10);valid=jnp.ones((10,2))
     before=np.asarray(base_state["scale"]).copy()
-    new_state,new_opt,metrics=fn(base_state,empty,states["spatial"],opts["spatial"],obs,actions,tasks,valid,jax.random.key(0),0)
+    new_state,new_opt,metrics=fn(base_state,states["spatial"],opts["spatial"],obs,actions,tasks,valid,jax.random.key(0),0)
     assert jnp.isfinite(metrics["loss"]) and new_state is not states["spatial"] and new_opt is not opts["spatial"]
     np.testing.assert_array_equal(np.asarray(base_state["scale"]),before)
 

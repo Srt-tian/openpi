@@ -86,11 +86,12 @@ def main():
     if args.output_dir.exists() and not args.resume:raise FileExistsError(args.output_dir)
     args.output_dir.mkdir(parents=True,exist_ok=args.resume)
     import jax, optax, wandb
-    from openpi.training import plugin_bank, sharding
+    from flax import nnx
+    from openpi.training import sharding
     if len(jax.devices())!=8:raise RuntimeError("V2 requires exactly 8 devices")
     mesh=sharding.make_mesh(8);params_path=args.base_checkpoint/"params"
-    base_graphdef,frozen,zero_loras=plugin_bank.initialize_bank(str(params_path),args.seed,mesh)
-    zero_lora=zero_loras[bank.SUITES[0]];base_model=nnx.merge(base_graphdef,frozen,zero_lora)
+    base_graphdef,frozen=bank.initialize_native_base(str(params_path),mesh)
+    base_model=nnx.merge(base_graphdef,frozen)
     feature_dim=int(base_model.action_out_proj.in_features)
     head_config={"feature_dim":feature_dim,"state_dim":8,"width":256,"horizon":10,"heads":4,"ffn_dim":1024,"residual_bound":1.0}
     head_graphdef,heads=bank.initialize_head_bank(feature_dim,args.seed)
@@ -127,14 +128,14 @@ def main():
     while global_step<TOTAL_UPDATES:
         suite=bank.SUITES[global_step%4];obs,actions,tasks,valid=batch_parts(next(iters[suite]));obs,actions,tasks,valid=legacy.put_batch_on_mesh((obs,actions,tasks,valid),mesh)
         rng=jax.random.fold_in(jax.random.key(args.seed),global_step)
-        heads[suite],opts[suite],metrics=step_fn(frozen,zero_lora,heads[suite],opts[suite],obs,actions,tasks,valid,rng,steps[suite])
+        heads[suite],opts[suite],metrics=step_fn(frozen,heads[suite],opts[suite],obs,actions,tasks,valid,rng,steps[suite])
         steps[suite]+=1;global_step+=1;run.log({f"train/{suite}/{k}":float(np.asarray(jax.device_get(v))) for k,v in metrics.items()},step=global_step)
         if global_step%EVAL_EVERY==0:
             # Holdout is diagnostic only; no optimizer update and no success claim.
             logs={}
             for name in bank.SUITES:
                 vo,va,vt,vv=legacy.put_batch_on_mesh(val_batches[name],mesh)
-                value,metric=eval_fn(frozen,zero_lora,heads[name],vo,va,vt,vv,
+                value,metric=eval_fn(frozen,heads[name],vo,va,vt,vv,
                   jax.random.fold_in(jax.random.key(args.seed),20_000+global_step),steps[name])
                 logs[f"holdout/{name}/loss"]=float(np.asarray(jax.device_get(value)))
             run.log(logs,step=global_step)
