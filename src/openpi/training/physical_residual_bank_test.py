@@ -11,10 +11,17 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 import pytest
+from pathlib import Path
 
 from openpi.training import physical_residual_bank as bank
 from openpi.models import model as model_api
 from openpi.training import sharding
+
+
+def test_native_loader_does_not_import_incompatible_training_config():
+    source=Path(bank.__file__).read_text()
+    assert "openpi.training import config" not in source
+    assert "pi0_config.Pi0Config(pi05=True, action_horizon=10, discrete_state_input=False)" in source
 
 
 @flax.struct.dataclass

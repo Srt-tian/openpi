@@ -31,8 +31,8 @@ FORMAT = "pi05-physical-residual-head-bank-v1"
 
 def initialize_native_base(checkpoint_path: str, mesh):
     """Restore the official native pi05_libero graph with no LoRA variables."""
-    from openpi.training import config as training_config
-    model_config = training_config.get_config("pi05_libero").model
+    from openpi.models import pi0_config
+    model_config = pi0_config.Pi0Config(pi05=True, action_horizon=10, discrete_state_input=False)
     abstract_model = nnx.eval_shape(model_config.create, jax.random.key(0))
     graphdef, state = nnx.split(abstract_model)
     restored = model_api.restore_params(checkpoint_path, restore_type=np.ndarray, dtype=jnp.bfloat16)
@@ -101,7 +101,10 @@ def make_sharded_head_step(base_graphdef, head_graphdef, tx, mesh):
                 num_tasks=10, valid_horizon=valid_horizon, suite_update=suite_update)
         (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(head_state)
         updates, new_optimizer = tx.update(grads, optimizer_state, head_state)
-        return optax.apply_updates(head_state, updates), new_optimizer, {**metrics, "loss": loss}
+        return optax.apply_updates(head_state, updates), new_optimizer, {
+            **metrics, "loss": loss, "gradient_norm": optax.global_norm(grads),
+            "update_norm": optax.global_norm(updates),
+        }
     compiled = jax.jit(step)
     def run(*args):
         with sharding.set_mesh(mesh): return compiled(*args)
