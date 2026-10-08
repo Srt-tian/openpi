@@ -17,22 +17,33 @@
     "physical_action_dimensions": 7,
     "padded_action_dimensions": 32,
     "normalized_state_dimensions": 8,
-    "bottleneck": 256,
+    "temporal_width": 256,
+    "temporal_blocks": 2,
+    "attention_heads": 4,
+    "ffn_width": 1024,
+    "dropout": 0.0,
+    "learned_horizon_positions": 10,
     "base_hidden_feature_dimensions": "configurable",
     "residual_tail_dimensions_7_to_31": "exact_zero",
     "residual_final_projection_init": "zero",
+    "residual_parameterization": "1.0 * tanh(raw_residual) in normalized flow velocity units",
+    "residual_bound_is_physical_safety_guarantee": false,
     "initial_surrogate_gate_probability": 0.25,
+    "gate_shape": "one chunk-level scalar pooled from temporal trunk and broadcast over horizon",
     "frozen_inputs": ["base_action_hidden", "base_velocity", "target_velocity"]
   },
   "loss": {
     "same_flow_time_and_noise_required_from_caller": true,
     "physical7_only": true,
     "optional_valid_horizon_mask": true,
-    "aggregation": "equal-weight per-task macro average",
+    "physical_grouping": "equal weight of xyz mean, rotation mean, and gripper scalar",
+    "aggregation": "equal-weight per-task macro average after physical grouping",
     "paired_relative_regret": "relu(error_phi - error_base + rho * error_base)",
     "correction_norm_weight_default": 0.001,
     "gate_target": "detached improvement of ungated residual relative to frozen base",
-    "gate_semantics": "surrogate teacher-relative competence; not rollout success"
+    "gate_semantics": "surrogate teacher-relative competence; not rollout success",
+    "gate_training": "first 500 suite updates forced to 1 with BCE weight 0; then stop-gradient max(gate,0.25) on FM path and detached gain-label BCE weight 0.1",
+    "gate_eval": "learned chunk gate without training floor"
   },
   "sampler": {
     "training_data": "demonstration train split only",
@@ -46,7 +57,7 @@
   "integration": {
     "model_helper": "implemented_and_small_fixture_tested",
     "train_step": "head-only reusable loss/gradient wrapper implemented; optimizer and runner integration pending",
-    "checkpoint_format": "pending",
+    "checkpoint_format": "four-head create-only bound checkpoint prototype implemented; full-base integration pending",
     "inference_hook": "opt-in cached-prefix solver implemented; serving integration pending",
     "full_model_bitwise_parity": "not_measured_without_full_weights; exact legacy-formula parity covered by small CPU fixture",
     "rollout_success": "not_measured"

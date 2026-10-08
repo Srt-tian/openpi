@@ -22,11 +22,12 @@ def inputs():
 
 
 def test_zero_init_padding_and_gate():
-    head = PhysicalResidualHead(5, rngs=nnx.Rngs(0))
+    head = PhysicalResidualHead(5, width=8, horizon=3, ffn_dim=16, rngs=nnx.Rngs(0))
     out = head(*inputs())
     np.testing.assert_array_equal(out["residual32"], np.zeros((2, 3, 32)))
     np.testing.assert_allclose(out["corrected_velocity"], inputs()[2])
     np.testing.assert_allclose(out["surrogate_gain_gate"], .25, atol=1e-6)
+    np.testing.assert_array_equal(out["surrogate_gain_gate"][:, :1], out["surrogate_gain_gate"][:, 1:2])
 
 
 def test_physical7_loss_ignores_padded_target_and_horizon_mask():
@@ -38,7 +39,7 @@ def test_physical7_loss_ignores_padded_target_and_horizon_mask():
 
 
 def test_base_hidden_velocity_and_target_are_stop_gradient():
-    head = PhysicalResidualHead(5, rngs=nnx.Rngs(1))
+    head = PhysicalResidualHead(5, width=8, horizon=3, ffn_dim=16, rngs=nnx.Rngs(1))
     hidden, state, velocity, time = inputs()
     assert float(jnp.linalg.norm(jax.grad(lambda h: head(h,state,velocity,time)["corrected_velocity"].sum())(hidden))) == 0
     assert float(jnp.linalg.norm(jax.grad(lambda v: head(hidden,state,v,time)["residual7"].sum())(velocity))) == 0
@@ -63,7 +64,7 @@ def test_balanced_sampler_is_deterministic_and_exact():
 
 
 def test_invalid_shapes_and_sampler_fail_closed():
-    head=PhysicalResidualHead(5,rngs=nnx.Rngs(2))
+    head=PhysicalResidualHead(5,width=8,horizon=3,ffn_dim=16,rngs=nnx.Rngs(2))
     with pytest.raises(ValueError): head(jnp.ones((2,3,4)),*inputs()[1:])
     with pytest.raises(ValueError): balanced_task_batch({i:[(0,1)] for i in range(9)},seed=0,step=0)
 
@@ -108,7 +109,7 @@ class _TinyFrozenBase:
 
 def test_training_wrapper_one_flow_call_and_head_only_grad(monkeypatch):
     monkeypatch.setattr(model_api, "preprocess_observation", lambda key, obs, train: obs)
-    base = _TinyFrozenBase(); head = PhysicalResidualHead(4, rngs=nnx.Rngs(3))
+    base = _TinyFrozenBase(); head = PhysicalResidualHead(4,width=8,horizon=2,ffn_dim=16,rngs=nnx.Rngs(3))
     obs = _Observation(jnp.ones((2,32))); actions = jnp.ones((2,2,32))
     before = np.asarray(base.scale).copy()
     (loss, metrics), grads = residual_head_value_and_grad(
@@ -121,7 +122,7 @@ def test_training_wrapper_one_flow_call_and_head_only_grad(monkeypatch):
 
 def test_opt_in_solver_zero_head_and_gate_off_match_native(monkeypatch):
     monkeypatch.setattr(model_api, "preprocess_observation", lambda key, obs, train: obs)
-    base = _TinyFrozenBase(); head = PhysicalResidualHead(4, rngs=nnx.Rngs(5))
+    base = _TinyFrozenBase(); head = PhysicalResidualHead(4,width=8,horizon=2,ffn_dim=16,rngs=nnx.Rngs(5))
     obs = _Observation(jnp.ones((2,32))); noise = jnp.arange(128,dtype=jnp.float32).reshape(2,2,32)/100
     native = base.sample_actions(jax.random.key(0), obs, num_steps=3, noise=noise)
     no_head = sample_actions_with_physical_residual(
@@ -136,3 +137,21 @@ def test_opt_in_solver_zero_head_and_gate_off_match_native(monkeypatch):
     np.testing.assert_array_equal(gate_off, native)
     out = head(jnp.ones((2,2,4)), obs.state, jnp.ones((2,2,32)), jnp.ones((2,)))
     np.testing.assert_array_equal(out["residual32"][...,7:], 0)
+
+
+def test_gate_warmup_blocks_gate_gradient_then_bce_trains_gate():
+    base=jnp.zeros((2,2,32));target=jnp.ones((2,2,32));residual=jnp.zeros((2,2,7));tasks=jnp.array([0,1])
+    def loss(gate,suite_update):
+        return physical_residual_loss(base_velocity=base,residual7=residual,gate=gate,
+            target_velocity=target,task_ids=tasks,num_tasks=2,suite_update=suite_update)[0]
+    gate=jnp.full((2,2,1),.25)
+    np.testing.assert_array_equal(jax.grad(loss)(gate,0),0)
+    assert float(jnp.linalg.norm(jax.grad(loss)(gate,500)))>0
+
+
+def test_grouped_physical_loss_equal_weights_xyz_rotation_grip():
+    base=jnp.zeros((3,1,32));gate=jnp.ones((3,1,1));tasks=jnp.arange(3);residual=jnp.zeros((3,1,7))
+    target=jnp.zeros((3,1,32)).at[0,0,:3].set(1).at[1,0,3:6].set(1).at[2,0,6].set(1)
+    _,metrics=physical_residual_loss(base_velocity=base,residual7=residual,gate=gate,
+        target_velocity=target,task_ids=tasks,num_tasks=3,suite_update=0,correction_weight=0,gate_weight=0)
+    np.testing.assert_allclose(metrics["base_physical_error"],1/3)

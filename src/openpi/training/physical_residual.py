@@ -18,21 +18,52 @@ PHYSICAL_DIM = 7
 PADDED_ACTION_DIM = 32
 
 
-class PhysicalResidualHead(nnx.Module):
-    """Small 7-D residual and surrogate-gain gate over frozen base features."""
+class _TemporalBlock(nnx.Module):
+    def __init__(self, width: int, heads: int, ffn_dim: int, *, rngs: nnx.Rngs):
+        if width % heads:
+            raise ValueError("temporal width must be divisible by attention heads")
+        self.width, self.heads = width, heads
+        self.pre_attn = nnx.LayerNorm(width, rngs=rngs)
+        self.qkv = nnx.Linear(width, 3 * width, rngs=rngs)
+        self.attn_out = nnx.Linear(width, width, rngs=rngs)
+        self.pre_ffn = nnx.LayerNorm(width, rngs=rngs)
+        self.ffn_in = nnx.Linear(width, ffn_dim, rngs=rngs)
+        self.ffn_out = nnx.Linear(ffn_dim, width, rngs=rngs)
 
-    def __init__(self, feature_dim: int, state_dim: int = 8, bottleneck: int = 256, *, rngs: nnx.Rngs):
-        if min(feature_dim, state_dim, bottleneck) <= 0 or state_dim > PADDED_ACTION_DIM:
-            raise ValueError("feature_dim/state_dim/bottleneck must be positive and state_dim <= 32")
+    def __call__(self, x):
+        batch, horizon = x.shape[:2]
+        qkv = self.qkv(self.pre_attn(x)).reshape(batch, horizon, 3, self.heads, self.width // self.heads)
+        q, k, v = (qkv[:, :, index] for index in range(3))
+        weights = jax.nn.softmax(jnp.einsum("bthd,bshd->bhts", q, k) / math.sqrt(q.shape[-1]), axis=-1)
+        attended = jnp.einsum("bhts,bshd->bthd", weights, v).reshape(batch, horizon, self.width)
+        x = x + self.attn_out(attended)
+        return x + self.ffn_out(jax.nn.gelu(self.ffn_in(self.pre_ffn(x))))
+
+
+class PhysicalResidualHead(nnx.Module):
+    """Two-block temporal physical residual with one chunk-level surrogate gate."""
+
+    def __init__(self, feature_dim: int, state_dim: int = 8, width: int = 256, *,
+                 horizon: int = 10, heads: int = 4, ffn_dim: int = 1024,
+                 residual_bound: float = 1.0, rngs: nnx.Rngs):
+        if min(feature_dim, state_dim, width, horizon, heads, ffn_dim) <= 0 or state_dim > PADDED_ACTION_DIM:
+            raise ValueError("head dimensions must be positive and state_dim <= 32")
+        if not math.isfinite(residual_bound) or residual_bound <= 0:
+            raise ValueError("residual_bound must be finite and positive")
         self.feature_dim, self.state_dim = feature_dim, state_dim
+        self.horizon, self.residual_bound = horizon, residual_bound
         input_dim = feature_dim + state_dim + PHYSICAL_DIM + 3
-        self.in_proj = nnx.Linear(input_dim, bottleneck, rngs=rngs)
+        self.in_proj = nnx.Linear(input_dim, width, rngs=rngs)
+        self.position_embedding = nnx.Param(jax.random.normal(rngs.params(), (horizon, width)) * .02)
+        self.block0 = _TemporalBlock(width, heads, ffn_dim, rngs=rngs)
+        self.block1 = _TemporalBlock(width, heads, ffn_dim, rngs=rngs)
+        self.final_norm = nnx.LayerNorm(width, rngs=rngs)
         self.residual_out = nnx.Linear(
-            bottleneck, PHYSICAL_DIM, kernel_init=jax.nn.initializers.zeros,
+            width, PHYSICAL_DIM, kernel_init=jax.nn.initializers.zeros,
             bias_init=jax.nn.initializers.zeros, rngs=rngs,
         )
         self.gate_out = nnx.Linear(
-            bottleneck, 1, kernel_init=jax.nn.initializers.zeros,
+            width, 1, kernel_init=jax.nn.initializers.zeros,
             bias_init=jax.nn.initializers.constant(math.log(0.25 / 0.75)), rngs=rngs,
         )
 
@@ -44,6 +75,8 @@ class PhysicalResidualHead(nnx.Module):
         if hidden.ndim != 3 or hidden.shape[-1] != self.feature_dim:
             raise ValueError("base_action_hidden must have shape [B,T,feature_dim]")
         batch, horizon = hidden.shape[:2]
+        if horizon != self.horizon:
+            raise ValueError(f"head requires configured horizon {self.horizon}")
         if state.shape != (batch, PADDED_ACTION_DIM) or velocity.shape != (batch, horizon, PADDED_ACTION_DIM):
             raise ValueError("normalized_state/base_velocity shape mismatch")
         if time.shape == (batch,):
@@ -53,9 +86,11 @@ class PhysicalResidualHead(nnx.Module):
         state = jnp.broadcast_to(state[:, None, : self.state_dim], (batch, horizon, self.state_dim))
         time_features = jnp.stack((time, jnp.sin(jnp.pi * time), jnp.cos(jnp.pi * time)), axis=-1)
         features = jnp.concatenate((hidden, state, velocity[..., :PHYSICAL_DIM], time_features), axis=-1)
-        trunk = jax.nn.gelu(self.in_proj(features))
-        residual7 = self.residual_out(trunk)
-        gate = jax.nn.sigmoid(self.gate_out(trunk))
+        trunk = self.in_proj(features) + self.position_embedding[None]
+        trunk = self.final_norm(self.block1(self.block0(trunk)))
+        residual7 = self.residual_bound * jnp.tanh(self.residual_out(trunk))
+        chunk_gate = jax.nn.sigmoid(self.gate_out(jnp.mean(trunk, axis=1)))[:, None, :]
+        gate = jnp.broadcast_to(chunk_gate, (batch, horizon, 1))
         residual32 = jnp.pad(residual7, ((0, 0), (0, 0), (0, PADDED_ACTION_DIM - PHYSICAL_DIM)))
         corrected = velocity + gate * residual32
         return {"corrected_velocity": corrected, "residual7": residual7,
@@ -98,7 +133,7 @@ def _task_macro(values, task_ids, valid_examples, num_tasks: int):
 def physical_residual_loss(
     *, base_velocity, residual7, gate, target_velocity, task_ids, num_tasks: int,
     valid_horizon=None, relative_margin: float = 0.05, correction_weight: float = 1e-3,
-    gate_weight: float = 0.1,
+    gate_weight: float = 0.1, suite_update: int | jax.Array = 0, gate_warmup_updates: int = 500,
 ):
     """Physical-7 task-macro FM plus paired teacher regret and surrogate gate loss."""
     base = jax.lax.stop_gradient(jnp.asarray(base_velocity))[..., :PHYSICAL_DIM]
@@ -113,10 +148,17 @@ def physical_residual_loss(
         raise ValueError("valid_horizon must have shape [B,T]")
     denom = jnp.maximum(mask.sum(axis=1), 1)
     reduce_horizon = lambda x: (x * mask).sum(axis=1) / denom
-    e0 = reduce_horizon(jnp.mean(jnp.square(base - target), axis=-1))
-    corrected = base + gate * residual
-    ephi = reduce_horizon(jnp.mean(jnp.square(corrected - target), axis=-1))
-    ungated_error = reduce_horizon(jnp.mean(jnp.square(base + residual - target), axis=-1))
+    def grouped_error(prediction):
+        squared = jnp.square(prediction - target)
+        return (jnp.mean(squared[..., :3], axis=-1) + jnp.mean(squared[..., 3:6], axis=-1)
+                + squared[..., 6]) / 3
+    warmup = jnp.asarray(suite_update) < gate_warmup_updates
+    training_gate = jnp.where(warmup, jnp.ones_like(gate),
+                              jnp.maximum(jax.lax.stop_gradient(gate), .25))
+    e0 = reduce_horizon(grouped_error(base))
+    corrected = base + training_gate * residual
+    ephi = reduce_horizon(grouped_error(corrected))
+    ungated_error = reduce_horizon(grouped_error(base + residual))
     correction = reduce_horizon(jnp.mean(jnp.square(residual), axis=-1))
     valid_examples = mask.sum(axis=1) > 0
     fm = _task_macro(ephi, task_ids, valid_examples, num_tasks)
@@ -127,16 +169,19 @@ def physical_residual_loss(
     gate_probability = jnp.clip(reduce_horizon(gate[..., 0]), 1e-6, 1 - 1e-6)
     gate_bce = _task_macro(-(label * jnp.log(gate_probability) + (1-label) * jnp.log(1-gate_probability)),
                            task_ids, valid_examples, num_tasks)
-    total = fm + regret + correction_weight * correction_norm + gate_weight * gate_bce
+    effective_gate_weight = jnp.where(warmup, 0.0, gate_weight)
+    total = fm + regret + correction_weight * correction_norm + effective_gate_weight * gate_bce
     return total, {"loss": total, "physical_fm": fm, "paired_relative_regret": regret,
                    "correction_norm": correction_norm, "surrogate_gate_bce": gate_bce,
-                   "base_physical_error": _task_macro(e0, task_ids, valid_examples, num_tasks)}
+                   "base_physical_error": _task_macro(e0, task_ids, valid_examples, num_tasks),
+                   "gate_warmup": warmup, "effective_gate_weight": effective_gate_weight}
 
 
 def residual_training_loss(
     frozen_base_model, head: PhysicalResidualHead, rng, observation, actions, task_ids, *,
     num_tasks: int, valid_horizon=None, train: bool = True, relative_margin: float = 0.05,
     correction_weight: float = 1e-3, gate_weight: float = 0.1,
+    suite_update: int | jax.Array = 0, gate_warmup_updates: int = 500,
 ):
     """Preprocess once and evaluate one shared flow point for head-only training.
 
@@ -161,7 +206,7 @@ def residual_training_loss(
         gate=outputs["surrogate_gain_gate"], target_velocity=flow["target_velocity"],
         task_ids=task_ids, num_tasks=num_tasks, valid_horizon=valid_horizon,
         relative_margin=relative_margin, correction_weight=correction_weight,
-        gate_weight=gate_weight,
+        gate_weight=gate_weight, suite_update=suite_update, gate_warmup_updates=gate_warmup_updates,
     )
     return loss, {**metrics, "mean_surrogate_gate": jnp.mean(outputs["surrogate_gain_gate"])}
 
