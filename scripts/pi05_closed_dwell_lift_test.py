@@ -26,8 +26,9 @@ def state(z=.4, aperture=.04):
 
 
 class Delegate:
-    def __init__(self, open_call=None):
+    def __init__(self, open_call=None, z_action=-.4):
         self.open_call = open_call
+        self.z_action = z_action
         self.calls = 0
         self.call_records = []
         self.provenance = {"kind": "fake_pi05"}
@@ -43,7 +44,7 @@ class Delegate:
     def act(self, observation, instruction, memory):
         del observation, instruction, memory
         index = self.calls
-        action = np.asarray([.01, -.02, -.4, .03, -.04, .05,
+        action = np.asarray([.01, -.02, self.z_action, .03, -.04, .05,
                              -.7 if index == self.open_call else .8])
         self.call_records.append({"inference_call": index,
                                   "policy_seed": 7 + index * 1_000_003})
@@ -105,10 +106,12 @@ def harness(cap):
 
 
 def run_case(*, terminal=230, cap=300, moving=False, height=False,
-             aperture=False, open_call=None, wrapped=True, delegate=None):
+             aperture=False, open_call=None, wrapped=True, delegate=None,
+             veto=False, z_action=-.4):
     api = backend.import_roborsi(ROOT)
-    delegate = delegate or Delegate(open_call=open_call)
-    skill = lift.Pi05ClosedDwellLiftSkill(delegate) if wrapped else delegate
+    delegate = delegate or Delegate(open_call=open_call, z_action=z_action)
+    skill = (lift.Pi05ClosedDwellLiftSkill(
+        delegate, veto_native_upward_intent=veto) if wrapped else delegate)
     holder = {}
 
     def factory():
@@ -123,6 +126,46 @@ def run_case(*, terminal=230, cap=300, moving=False, height=False,
 
 
 class ClosedDwellLiftTest(unittest.TestCase):
+    def test_veto_parameter_is_strict_bool_and_default_is_legacy_false(self):
+        self.assertFalse(lift.Pi05ClosedDwellLiftSkill(Delegate()).veto_native_upward_intent)
+        for value in (0, 1, None, "true"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                lift.Pi05ClosedDwellLiftSkill(Delegate(), veto_native_upward_intent=value)
+
+    def test_veto_has_false_cue_native_parity(self):
+        native = run_case(terminal=180, moving=True, wrapped=False, z_action=.1)
+        tested = run_case(terminal=180, moving=True, veto=True, z_action=.1)
+        np.testing.assert_array_equal(native[1].actions, tested[1].actions)
+        self.assertEqual(native[3].episodes[0]["records"], tested[3].episodes[0]["records"])
+        self.assertFalse(tested[2].provenance["attempted"])
+
+    def test_positive_native_z_permanently_vetoes_without_cache_or_ghosts(self):
+        native = run_case(terminal=124, wrapped=False, z_action=.1)
+        report, env, skill, delegate = run_case(terminal=124, veto=True, z_action=.1)
+        p = skill.provenance
+        self.assertTrue(p["attempted"])
+        self.assertEqual(p["veto_reason"], "incoming_native_upward_intent")
+        self.assertEqual(p["native_incoming_z"], .1)
+        self.assertIsNone(p["first_changed_action_step"])
+        self.assertEqual((p["assist_slots_executed"], p["modification_count"]), (0, 0))
+        self.assertEqual((len(p["emitted_rows"]), len(p["executed_rows"])), (125, 124))
+        self.assertTrue(p["emitted_rows"][-1]["truncated_before_execution"])
+        self.assertEqual((report["steps"], len(env.actions), delegate.calls), (124, 124, 25))
+        np.testing.assert_array_equal(env.actions, np.repeat(
+            np.asarray([[.01, -.02, .1, .03, -.04, .05, .8]]), 124, axis=0))
+        np.testing.assert_array_equal(env.actions, native[1].actions)
+        self.assertEqual(delegate.episodes[0]["records"], native[3].episodes[0]["records"])
+        self.assertTrue(p["execution_reconciled"])
+
+    def test_negative_and_zero_native_z_are_not_vetoed(self):
+        for value in (-.4, 0.):
+            with self.subTest(value=value):
+                _, _, skill, _ = run_case(veto=True, z_action=value)
+                self.assertTrue(skill.provenance["attempted"])
+                self.assertIsNone(skill.provenance["veto_reason"])
+                self.assertEqual(skill.provenance["assist_slots_executed"], 10)
+                self.assertEqual(skill.provenance["first_changed_action_step"], 120)
+
     def test_no_cue_is_exact_native_action_call_and_seed_equivalent(self):
         native = run_case(terminal=180, moving=True, wrapped=False)
         tested = run_case(terminal=180, moving=True)

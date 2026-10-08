@@ -68,8 +68,11 @@ def closed_dwell_guard(
 class Pi05ClosedDwellLiftSkill:
     """One-shot lift-only transform while preserving native inference cadence."""
 
-    def __init__(self, delegate: Any):
+    def __init__(self, delegate: Any, *, veto_native_upward_intent: bool = False):
+        if type(veto_native_upward_intent) is not bool:
+            raise ValueError("veto_native_upward_intent must be a bool")
         self.delegate = delegate
+        self.veto_native_upward_intent = veto_native_upward_intent
         self.provenance: dict[str, Any] = {}
         self._active = False
 
@@ -108,6 +111,8 @@ class Pi05ClosedDwellLiftSkill:
         self._modifications_executed = 0
         self._first_changed_action_step: int | None = None
         self._early_stop_reason: str | None = None
+        self._veto_reason: str | None = None
+        self._native_incoming_z: float | None = None
 
     def reset(self):
         if not self._active:
@@ -201,8 +206,14 @@ class Pi05ClosedDwellLiftSkill:
             self._native, self._state, self._context)
         raw, chunk = self._delegate_chunk(observation, instruction, memory)
         if cue is not None:
-            self._attempted = self._assist_active = True
+            self._attempted = True
             self._cue, self._trigger_z = cue, float(self._state[2])
+            self._native_incoming_z = float(raw[0, 2])
+            if self.veto_native_upward_intent and self._native_incoming_z > 0:
+                self._assist_active = False
+                self._veto_reason = "incoming_native_upward_intent"
+            else:
+                self._assist_active = True
         if self._assist_active and self._assist_slots < MAX_ASSIST_SLOTS:
             self._cache.extend({"raw": row.copy(), "chunk": chunk} for row in raw[1:GRACE])
             return self._emit_assist_raw(raw[0].copy(), chunk)
@@ -264,6 +275,9 @@ class Pi05ClosedDwellLiftSkill:
                 "modification_count": self._modifications_executed,
                 "emitted_modification_count": self._modifications_emitted,
                 "early_stop_reason": self._early_stop_reason,
+                "veto_native_upward_intent": self.veto_native_upward_intent,
+                "veto_reason": self._veto_reason,
+                "native_incoming_z": self._native_incoming_z,
                 "native_reserve": NATIVE_RESERVE,
                 "chunks": copy.deepcopy(self._chunks),
                 "emitted_rows": copy.deepcopy(self._emitted),

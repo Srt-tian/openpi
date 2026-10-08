@@ -1,0 +1,489 @@
+{
+  "configuration_model": "One shared runner; each task inherits default unless explicitly overridden in selected registry.",
+  "default_skill": "magicvla",
+  "evaluation_profile": "openpi-libero-vla-50x40",
+  "name": "libero40-task-catalog",
+  "schema": 1,
+  "tasks": [
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "put both the alphabet soup and the tomato sauce in the basket"
+      },
+      "instruction": "put both the alphabet soup and the tomato sauce in the basket",
+      "key": "libero_10/0",
+      "max_steps": 520,
+      "suite": "libero_10",
+      "task_index": 0,
+      "task_name": "LIVING_ROOM_SCENE2_put_both_the_alphabet_soup_and_the_tomato_sauce_in_the_basket"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "put both the cream cheese box and the butter in the basket"
+      },
+      "instruction": "put both the cream cheese box and the butter in the basket",
+      "key": "libero_10/1",
+      "max_steps": 520,
+      "suite": "libero_10",
+      "task_index": 1,
+      "task_name": "LIVING_ROOM_SCENE2_put_both_the_cream_cheese_box_and_the_butter_in_the_basket"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "turn on the stove and put the moka pot on it"
+      },
+      "instruction": "turn on the stove and put the moka pot on it",
+      "key": "libero_10/2",
+      "max_steps": 520,
+      "suite": "libero_10",
+      "task_index": 2,
+      "task_name": "KITCHEN_SCENE3_turn_on_the_stove_and_put_the_moka_pot_on_it"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "put the black bowl in the bottom drawer of the cabinet and close it"
+      },
+      "instruction": "put the black bowl in the bottom drawer of the cabinet and close it",
+      "key": "libero_10/3",
+      "max_steps": 520,
+      "suite": "libero_10",
+      "task_index": 3,
+      "task_name": "KITCHEN_SCENE4_put_the_black_bowl_in_the_bottom_drawer_of_the_cabinet_and_close_it"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "put the white mug on the left plate and put the yellow and white mug on the right plate"
+      },
+      "instruction": "put the white mug on the left plate and put the yellow and white mug on the right plate",
+      "key": "libero_10/4",
+      "max_steps": 520,
+      "suite": "libero_10",
+      "task_index": 4,
+      "task_name": "LIVING_ROOM_SCENE5_put_the_white_mug_on_the_left_plate_and_put_the_yellow_and_white_mug_on_the_right_plate"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the book and place it in the back compartment of the caddy"
+      },
+      "instruction": "pick up the book and place it in the back compartment of the caddy",
+      "key": "libero_10/5",
+      "max_steps": 520,
+      "suite": "libero_10",
+      "task_index": 5,
+      "task_name": "STUDY_SCENE1_pick_up_the_book_and_place_it_in_the_back_compartment_of_the_caddy"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "put the white mug on the plate and put the chocolate pudding to the right of the plate"
+      },
+      "instruction": "put the white mug on the plate and put the chocolate pudding to the right of the plate",
+      "key": "libero_10/6",
+      "max_steps": 520,
+      "suite": "libero_10",
+      "task_index": 6,
+      "task_name": "LIVING_ROOM_SCENE6_put_the_white_mug_on_the_plate_and_put_the_chocolate_pudding_to_the_right_of_the_plate"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "put both the alphabet soup and the cream cheese box in the basket"
+      },
+      "instruction": "put both the alphabet soup and the cream cheese box in the basket",
+      "key": "libero_10/7",
+      "max_steps": 520,
+      "suite": "libero_10",
+      "task_index": 7,
+      "task_name": "LIVING_ROOM_SCENE1_put_both_the_alphabet_soup_and_the_cream_cheese_box_in_the_basket"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "put both moka pots on the stove"
+      },
+      "instruction": "put both moka pots on the stove",
+      "key": "libero_10/8",
+      "max_steps": 520,
+      "suite": "libero_10",
+      "task_index": 8,
+      "task_name": "KITCHEN_SCENE8_put_both_moka_pots_on_the_stove"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "put the yellow and white mug in the microwave and close it"
+      },
+      "instruction": "put the yellow and white mug in the microwave and close it",
+      "key": "libero_10/9",
+      "max_steps": 520,
+      "suite": "libero_10",
+      "task_index": 9,
+      "task_name": "KITCHEN_SCENE6_put_the_yellow_and_white_mug_in_the_microwave_and_close_it"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "open the middle drawer of the cabinet"
+      },
+      "instruction": "open the middle drawer of the cabinet",
+      "key": "libero_goal/0",
+      "max_steps": 300,
+      "suite": "libero_goal",
+      "task_index": 0,
+      "task_name": "open_the_middle_drawer_of_the_cabinet"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "put the bowl on the stove"
+      },
+      "instruction": "put the bowl on the stove",
+      "key": "libero_goal/1",
+      "max_steps": 300,
+      "suite": "libero_goal",
+      "task_index": 1,
+      "task_name": "put_the_bowl_on_the_stove"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "put the wine bottle on top of the cabinet"
+      },
+      "instruction": "put the wine bottle on top of the cabinet",
+      "key": "libero_goal/2",
+      "max_steps": 300,
+      "suite": "libero_goal",
+      "task_index": 2,
+      "task_name": "put_the_wine_bottle_on_top_of_the_cabinet"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "open the top drawer and put the bowl inside"
+      },
+      "instruction": "open the top drawer and put the bowl inside",
+      "key": "libero_goal/3",
+      "max_steps": 300,
+      "suite": "libero_goal",
+      "task_index": 3,
+      "task_name": "open_the_top_drawer_and_put_the_bowl_inside"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "put the bowl on top of the cabinet"
+      },
+      "instruction": "put the bowl on top of the cabinet",
+      "key": "libero_goal/4",
+      "max_steps": 300,
+      "suite": "libero_goal",
+      "task_index": 4,
+      "task_name": "put_the_bowl_on_top_of_the_cabinet"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "push the plate to the front of the stove"
+      },
+      "instruction": "push the plate to the front of the stove",
+      "key": "libero_goal/5",
+      "max_steps": 300,
+      "suite": "libero_goal",
+      "task_index": 5,
+      "task_name": "push_the_plate_to_the_front_of_the_stove"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "put the cream cheese in the bowl"
+      },
+      "instruction": "put the cream cheese in the bowl",
+      "key": "libero_goal/6",
+      "max_steps": 300,
+      "suite": "libero_goal",
+      "task_index": 6,
+      "task_name": "put_the_cream_cheese_in_the_bowl"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "turn on the stove"
+      },
+      "instruction": "turn on the stove",
+      "key": "libero_goal/7",
+      "max_steps": 300,
+      "suite": "libero_goal",
+      "task_index": 7,
+      "task_name": "turn_on_the_stove"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "put the bowl on the plate"
+      },
+      "instruction": "put the bowl on the plate",
+      "key": "libero_goal/8",
+      "max_steps": 300,
+      "suite": "libero_goal",
+      "task_index": 8,
+      "task_name": "put_the_bowl_on_the_plate"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "put the wine bottle on the rack"
+      },
+      "instruction": "put the wine bottle on the rack",
+      "key": "libero_goal/9",
+      "max_steps": 300,
+      "suite": "libero_goal",
+      "task_index": 9,
+      "task_name": "put_the_wine_bottle_on_the_rack"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the alphabet soup and place it in the basket"
+      },
+      "instruction": "pick up the alphabet soup and place it in the basket",
+      "key": "libero_object/0",
+      "max_steps": 280,
+      "suite": "libero_object",
+      "task_index": 0,
+      "task_name": "pick_up_the_alphabet_soup_and_place_it_in_the_basket"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the cream cheese and place it in the basket"
+      },
+      "instruction": "pick up the cream cheese and place it in the basket",
+      "key": "libero_object/1",
+      "max_steps": 280,
+      "suite": "libero_object",
+      "task_index": 1,
+      "task_name": "pick_up_the_cream_cheese_and_place_it_in_the_basket"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the salad dressing and place it in the basket"
+      },
+      "instruction": "pick up the salad dressing and place it in the basket",
+      "key": "libero_object/2",
+      "max_steps": 280,
+      "suite": "libero_object",
+      "task_index": 2,
+      "task_name": "pick_up_the_salad_dressing_and_place_it_in_the_basket"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the bbq sauce and place it in the basket"
+      },
+      "instruction": "pick up the bbq sauce and place it in the basket",
+      "key": "libero_object/3",
+      "max_steps": 280,
+      "suite": "libero_object",
+      "task_index": 3,
+      "task_name": "pick_up_the_bbq_sauce_and_place_it_in_the_basket"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the ketchup and place it in the basket"
+      },
+      "instruction": "pick up the ketchup and place it in the basket",
+      "key": "libero_object/4",
+      "max_steps": 280,
+      "suite": "libero_object",
+      "task_index": 4,
+      "task_name": "pick_up_the_ketchup_and_place_it_in_the_basket"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the tomato sauce and place it in the basket"
+      },
+      "instruction": "pick up the tomato sauce and place it in the basket",
+      "key": "libero_object/5",
+      "max_steps": 280,
+      "suite": "libero_object",
+      "task_index": 5,
+      "task_name": "pick_up_the_tomato_sauce_and_place_it_in_the_basket"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the butter and place it in the basket"
+      },
+      "instruction": "pick up the butter and place it in the basket",
+      "key": "libero_object/6",
+      "max_steps": 280,
+      "suite": "libero_object",
+      "task_index": 6,
+      "task_name": "pick_up_the_butter_and_place_it_in_the_basket"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the milk and place it in the basket"
+      },
+      "instruction": "pick up the milk and place it in the basket",
+      "key": "libero_object/7",
+      "max_steps": 280,
+      "suite": "libero_object",
+      "task_index": 7,
+      "task_name": "pick_up_the_milk_and_place_it_in_the_basket"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the chocolate pudding and place it in the basket"
+      },
+      "instruction": "pick up the chocolate pudding and place it in the basket",
+      "key": "libero_object/8",
+      "max_steps": 280,
+      "suite": "libero_object",
+      "task_index": 8,
+      "task_name": "pick_up_the_chocolate_pudding_and_place_it_in_the_basket"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the orange juice and place it in the basket"
+      },
+      "instruction": "pick up the orange juice and place it in the basket",
+      "key": "libero_object/9",
+      "max_steps": 280,
+      "suite": "libero_object",
+      "task_index": 9,
+      "task_name": "pick_up_the_orange_juice_and_place_it_in_the_basket"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the black bowl between the plate and the ramekin and place it on the plate"
+      },
+      "instruction": "pick up the black bowl between the plate and the ramekin and place it on the plate",
+      "key": "libero_spatial/0",
+      "max_steps": 220,
+      "suite": "libero_spatial",
+      "task_index": 0,
+      "task_name": "pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the black bowl next to the ramekin and place it on the plate"
+      },
+      "instruction": "pick up the black bowl next to the ramekin and place it on the plate",
+      "key": "libero_spatial/1",
+      "max_steps": 220,
+      "suite": "libero_spatial",
+      "task_index": 1,
+      "task_name": "pick_up_the_black_bowl_next_to_the_ramekin_and_place_it_on_the_plate"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the black bowl from table center and place it on the plate"
+      },
+      "instruction": "pick up the black bowl from table center and place it on the plate",
+      "key": "libero_spatial/2",
+      "max_steps": 220,
+      "suite": "libero_spatial",
+      "task_index": 2,
+      "task_name": "pick_up_the_black_bowl_from_table_center_and_place_it_on_the_plate"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the black bowl on the cookie box and place it on the plate"
+      },
+      "instruction": "pick up the black bowl on the cookie box and place it on the plate",
+      "key": "libero_spatial/3",
+      "max_steps": 220,
+      "suite": "libero_spatial",
+      "task_index": 3,
+      "task_name": "pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the black bowl in the top drawer of the wooden cabinet and place it on the plate"
+      },
+      "instruction": "pick up the black bowl in the top drawer of the wooden cabinet and place it on the plate",
+      "key": "libero_spatial/4",
+      "max_steps": 220,
+      "suite": "libero_spatial",
+      "task_index": 4,
+      "task_name": "pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the black bowl on the ramekin and place it on the plate"
+      },
+      "instruction": "pick up the black bowl on the ramekin and place it on the plate",
+      "key": "libero_spatial/5",
+      "max_steps": 220,
+      "suite": "libero_spatial",
+      "task_index": 5,
+      "task_name": "pick_up_the_black_bowl_on_the_ramekin_and_place_it_on_the_plate"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the black bowl next to the cookie box and place it on the plate"
+      },
+      "instruction": "pick up the black bowl next to the cookie box and place it on the plate",
+      "key": "libero_spatial/6",
+      "max_steps": 220,
+      "suite": "libero_spatial",
+      "task_index": 6,
+      "task_name": "pick_up_the_black_bowl_next_to_the_cookie_box_and_place_it_on_the_plate"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the black bowl on the stove and place it on the plate"
+      },
+      "instruction": "pick up the black bowl on the stove and place it on the plate",
+      "key": "libero_spatial/7",
+      "max_steps": 220,
+      "suite": "libero_spatial",
+      "task_index": 7,
+      "task_name": "pick_up_the_black_bowl_on_the_stove_and_place_it_on_the_plate"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the black bowl next to the plate and place it on the plate"
+      },
+      "instruction": "pick up the black bowl next to the plate and place it on the plate",
+      "key": "libero_spatial/8",
+      "max_steps": 220,
+      "suite": "libero_spatial",
+      "task_index": 8,
+      "task_name": "pick_up_the_black_bowl_next_to_the_plate_and_place_it_on_the_plate"
+    },
+    {
+      "default_config": {
+        "inherit": "shared-single-stage",
+        "instruction": "pick up the black bowl on the wooden cabinet and place it on the plate"
+      },
+      "instruction": "pick up the black bowl on the wooden cabinet and place it on the plate",
+      "key": "libero_spatial/9",
+      "max_steps": 220,
+      "suite": "libero_spatial",
+      "task_index": 9,
+      "task_name": "pick_up_the_black_bowl_on_the_wooden_cabinet_and_place_it_on_the_plate"
+    }
+  ]
+}

@@ -31,6 +31,22 @@ def episode(changed=True):
 
 class TestAudit(unittest.TestCase):
     def test_valid_assist(self): self.assertEqual(target.audit_episode(episode(),"assist",IDENTITY),[])
+    def test_valid_intent_veto_is_unmodified_and_causally_identical(self):
+        c, a = episode(False), episode(False)
+        for value in (c, a):
+            value["runner"]["report"]["trace"][120]["action"][2] = .1
+        p = a["runner"]["report"]["skills"]["pi05"]["provenance"]
+        for rows in (p["emitted_rows"], p["executed_rows"]):
+            rows[120]["raw_action"][2] = .1
+            rows[120]["executed_action"][2] = .1
+        p.update(veto_native_upward_intent=True,
+                 veto_reason="incoming_native_upward_intent", native_incoming_z=.1,
+                 attempted=True, cue={"window":60,"closed_command_rows":57,
+                 "xyz_ptp_m":[.01]*3,"aperture_m":.02,
+                 "context":{"actual_executed":120,"remaining_episode":400,
+                 "stage_executed":120,"remaining_stage":400,"stage_index":0}})
+        self.assertEqual(target.audit_episode(a, "assist", IDENTITY), [])
+        self.assertEqual(target.causal(c, a), [])
     def test_non_z_change_fails(self):
         x=episode(); p=x["runner"]["report"]["skills"]["pi05"]["provenance"]
         p["executed_rows"][120]["executed_action"][0]=1;p["emitted_rows"][120]["executed_action"][0]=1;x["runner"]["report"]["trace"][120]["action"][0]=1
