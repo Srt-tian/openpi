@@ -173,8 +173,16 @@ class _VideoDecoder:
         tolerance = 0.51 / fps
         seek_time = max(0.0, timestamp - 2.0)
         container.seek(int(seek_time / float(stream.time_base)), stream=stream, backward=True)
-        wanted = [timestamp + i / fps for i in range(self.prefetch)]
-        wanted = [value for value in wanted if value < upper - 1e-7]
+        # Episode end is exclusive. Relative parquet timestamps may be float32:
+        # an exact end such as 1023.0 can become 1022.9999996 after adding the
+        # video offset. A fixed epsilon then admits a nonexistent end frame.
+        # Quantize only optional prefetch admission to the frame grid. Always
+        # decode the requested frame under the unchanged strict PTS tolerance.
+        wanted = [timestamp]
+        wanted.extend(
+            value for i in range(1, self.prefetch)
+            if (value := timestamp + i / fps) < upper - 0.5 / fps
+        )
         found_times: list[float] = []
         found_frames: list[np.ndarray] = []
         for frame in container.decode(stream):
@@ -375,7 +383,13 @@ class LiberoV3Dataset:
         if absolute < start - 1e-7 or absolute >= stop + 1e-7:
             raise ValueError(f"episode {episode.index}: video timestamp outside episode interval")
         path = self.root / f"videos/{key}/chunk-{chunk:03d}/file-{file:03d}.mp4"
-        image = self._videos.get(path, absolute, self.fps, stop)
+        try:
+            image = self._videos.get(path, absolute, self.fps, stop)
+        except ValueError as exc:
+            raise ValueError(
+                f"episode={episode.index} camera={key} video={path} "
+                f"requested={absolute:.9f}s interval=[{start:.9f}, {stop:.9f}): {exc}"
+            ) from exc
         if image.dtype != np.uint8 or image.shape != (256, 256, 3):
             raise ValueError(f"unexpected decoded image: dtype={image.dtype}, shape={image.shape}")
         return image

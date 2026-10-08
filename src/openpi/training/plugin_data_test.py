@@ -1,5 +1,8 @@
 import json
 import pickle
+from fractions import Fraction
+from pathlib import Path
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -37,6 +40,58 @@ def _table(episode):
 
 
 class PluginDataTest(unittest.TestCase):
+    @staticmethod
+    def _mock_video(times):
+        frames = [
+            SimpleNamespace(
+                pts=round(time * 10_000),
+                to_ndarray=lambda format, value=index: np.full((2, 2, 3), value, dtype=np.uint8),
+            )
+            for index, time in enumerate(times)
+        ]
+        container = mock.Mock()
+        container.decode.side_effect = lambda stream: iter(frames)
+        stream = SimpleNamespace(time_base=Fraction(1, 10_000))
+        return container, stream
+
+    def test_prefetch_excludes_float32_rounded_exclusive_video_end(self):
+        path = Path("/video.mp4")
+        for requested in (997.8 + float(np.float32(24.9)), 1022.7, 1022.7 + 4e-7):
+            with self.subTest(requested=requested):
+                decoder = plugin_data._VideoDecoder()
+                container, stream = self._mock_video([1022.7, 1022.8, 1022.9])
+                with mock.patch.object(decoder, "_container", return_value=(container, stream)):
+                    image = decoder.get(path, requested, 10.0, 1023.0)
+                    repeated = decoder.get(path, requested, 10.0, 1023.0)
+                np.testing.assert_array_equal(image, np.zeros((2, 2, 3), dtype=np.uint8))
+                np.testing.assert_array_equal(repeated, image)
+                self.assertEqual(len(decoder._frames), 3)
+                self.assertNotIn(decoder._key(path, 1023.0), decoder._frames)
+                self.assertEqual(container.seek.call_count, 1)
+
+    def test_prefetch_does_not_cache_the_next_episode_boundary(self):
+        decoder = plugin_data._VideoDecoder()
+        path = Path("/video.mp4")
+        container, stream = self._mock_video([1022.7, 1022.8, 1022.9, 1023.0])
+        with mock.patch.object(decoder, "_container", return_value=(container, stream)):
+            decoder.get(path, 1022.6999996, 10.0, 1023.0)
+        self.assertEqual(len(decoder._frames), 3)
+        self.assertNotIn(decoder._key(path, 1023.0), decoder._frames)
+
+    def test_requested_frame_is_never_replaced_by_out_of_tolerance_neighbor(self):
+        decoder = plugin_data._VideoDecoder()
+        container, stream = self._mock_video([12.8])
+        with mock.patch.object(decoder, "_container", return_value=(container, stream)):
+            with self.assertRaisesRegex(ValueError, r"0.100000s.*tolerance 0.051000s"):
+                decoder.get(Path("/video.mp4"), 12.7, 10.0, 14.0)
+
+    def test_interior_prefetch_still_uses_strict_timestamp_matching(self):
+        decoder = plugin_data._VideoDecoder(prefetch=3)
+        container, stream = self._mock_video([12.7, 12.9])
+        with mock.patch.object(decoder, "_container", return_value=(container, stream)):
+            with self.assertRaisesRegex(ValueError, r"0.100000s.*tolerance 0.051000s"):
+                decoder.get(Path("/video.mp4"), 12.7, 10.0, 14.0)
+
     def test_action_chunk_clamps_inside_episode(self):
         first, second = _episode(0, 0), _episode(1, 1)
         tables = {0: _table(first), 1: _table(second)}
@@ -127,6 +182,19 @@ class PluginDataTest(unittest.TestCase):
         }
         self.assertEqual(json.loads(json.dumps(manifest)), manifest)
         self.assertEqual(set().union(*plugin_data.SUITE_TASKS.values()), set(range(40)))
+
+    def test_video_error_identifies_episode_camera_path_and_requested_time(self):
+        episode = _episode(5, 0, start=12.5)
+        dataset = plugin_data.LiberoV3Dataset(
+            "/dataset", [episode], dict(enumerate(plugin_data.EXPECTED_TASKS)), 10.0, 10
+        )
+        with mock.patch.object(dataset._videos, "get", side_effect=ValueError("PTS mismatch")):
+            with self.assertRaisesRegex(ValueError, "episode=5 camera=observation.images.image") as caught:
+                dataset._image(episode, plugin_data.VIDEO_KEYS[0], 0.2)
+        self.assertIn("file-007.mp4", str(caught.exception))
+        self.assertIn("requested=12.700000000s", str(caught.exception))
+        self.assertIn("PTS mismatch", str(caught.exception))
+        self.assertIsInstance(caught.exception.__cause__, ValueError)
 
 
 if __name__ == "__main__":
