@@ -1,0 +1,40 @@
+{
+  "batches": [
+    {
+      "cases": "configs/pi05_response_probe/cases_worker1.json",
+      "mode": "harness",
+      "name": "worker1_control",
+      "registry": "configs/pi05_harness/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    },
+    {
+      "cases": "configs/pi05_response_probe/cases_worker1.json",
+      "mode": "harness",
+      "name": "worker1_prefix25",
+      "registry": "configs/pi05_goal3_early_prefix/prefix25/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    },
+    {
+      "cases": "configs/pi05_response_probe/cases_worker1.json",
+      "mode": "harness",
+      "name": "worker1_prefix50",
+      "registry": "configs/pi05_goal3_early_prefix/prefix50/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    },
+    {
+      "cases": "configs/pi05_response_probe/cases_worker1.json",
+      "mode": "harness",
+      "name": "worker1_prefix75",
+      "registry": "configs/pi05_goal3_early_prefix/prefix75/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    },
+    {
+      "cases": "configs/pi05_response_probe/cases_worker1.json",
+      "mode": "harness",
+      "name": "worker1_prefix100",
+      "registry": "configs/pi05_goal3_early_prefix/prefix100/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    }
+  ],
+  "schema": "pi05_harness_worker.v1"
+}

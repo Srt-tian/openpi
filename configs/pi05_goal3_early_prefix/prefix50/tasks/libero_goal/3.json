@@ -1,0 +1,44 @@
+{
+  "evidence": {
+    "current_hypothesis": "earlier_fixed_handoff",
+    "later_instruction_lease": "lease40_and_lease80_zero_net_gain",
+    "phase_semantics": "fixed_duration_not_subgoal_success_certificate",
+    "prior_phase_screen": {
+      "hard_cases": "8/10",
+      "unconditional_regressions": 3
+    },
+    "routing": "task_wide_no_init_image_state_or_object_oracle",
+    "scope": "research_screen_not_full400_score",
+    "source": "audited_probe01_phase_error"
+  },
+  "harness": {
+    "name": "pi05-goal3-prefix50",
+    "remember": [],
+    "schema": 1,
+    "stages": [
+      {
+        "instruction": "open the top drawer",
+        "max_steps": 50,
+        "on_timeout": "next",
+        "skill": "pi05",
+        "until": null
+      },
+      {
+        "instruction": "open the top drawer and put the bowl inside",
+        "max_steps": 250,
+        "on_timeout": "abort",
+        "skill": "pi05",
+        "until": null
+      }
+    ]
+  },
+  "parent_sha256": "8f4079a3c03449f40c77beb9bad2990c9fb28b5d8bbf9496b4a49e5eb02bd4e0",
+  "proposal": {
+    "candidate": "prefix50",
+    "rationale": "Screen a fixed goal/3 prompt/phase hypothesis without oracle transitions."
+  },
+  "reasoning": "Unvalidated task-wide research candidate from audited probe01 phase-error evidence; a fixed-duration prefix is not a certificate that its subgoal succeeded.",
+  "schema": 1,
+  "status": "unvalidated_research_candidate",
+  "task": "libero_goal/3"
+}

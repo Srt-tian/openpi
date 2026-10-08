@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Strict five-arm aggregation for the PI0.5 goal3 language-phase screen."""
+"""Strict configurable-arm aggregation for the PI0.5 goal3 language-phase screen."""
 from __future__ import annotations
 
 import argparse
@@ -10,6 +10,8 @@ from pathlib import Path
 from aggregate_pi05_response_probe import causal_pair
 
 ARMS = ("control", "probe", "prefix100", "prefix150", "sequential")
+VALID_ARMS = ("control", "probe", "prefix25", "prefix50", "prefix75",
+              "prefix100", "prefix150", "sequential")
 ORIGINAL = "open the top drawer and put the bowl inside"
 OPEN = "open the top drawer"
 SEQUENTIAL = "open the top drawer first, then put the bowl inside it"
@@ -17,8 +19,17 @@ EXPECTED = {(init, rep) for init in range(10)
             for rep in (range(10) if init == 4 else (0,))}
 
 
-def arm(name: str) -> str:
-    hits = [value for value in ARMS if value in name]
+def validate_arms(arms) -> tuple[str, ...]:
+    values = tuple(arms)
+    if (not values or "control" not in values or len(set(values)) != len(values)
+            or any(value not in VALID_ARMS for value in values)):
+        raise ValueError(f"arms must be unique members of {VALID_ARMS}: {values}")
+    return values
+
+
+def arm(name: str, arms=ARMS) -> str:
+    arms = validate_arms(arms)
+    hits = [value for value in arms if value in name]
     if len(hits) != 1:
         raise ValueError(f"batch name does not select exactly one arm: {name}")
     return hits[0]
@@ -40,11 +51,12 @@ def key(case: dict) -> tuple[int, int]:
 def expected_stages(which: str):
     if which in ("control", "probe"):
         return [(ORIGINAL, 300)]
-    if which == "prefix100":
-        return [(OPEN, 100), (ORIGINAL, 200)]
-    if which == "prefix150":
-        return [(OPEN, 150), (ORIGINAL, 150)]
-    return [(SEQUENTIAL, 300)]
+    if which.startswith("prefix") and which in VALID_ARMS:
+        budget = int(which.removeprefix("prefix"))
+        return [(OPEN, budget), (ORIGINAL, 300 - budget)]
+    if which == "sequential":
+        return [(SEQUENTIAL, 300)]
+    raise ValueError(f"unknown arm: {which}")
 
 
 def audit_episode(value: dict, which: str, manifest_identity: dict) -> list[str]:
@@ -66,7 +78,8 @@ def audit_episode(value: dict, which: str, manifest_identity: dict) -> list[str]
     stage_ids = [row.get("stage") for row in trace]
     if stage_ids and stage_ids[0] != 0:
         errors.append("trace does not begin in stage0")
-    boundary = 100 if which == "prefix100" else 150 if which == "prefix150" else None
+    expected = expected_stages(which)
+    boundary = expected[0][1] if len(expected) == 2 else None
     if boundary is not None:
         expected_ids = [0 if step < boundary else 1 for step in range(len(trace))]
         if stage_ids != expected_ids:
@@ -90,7 +103,7 @@ def audit_episode(value: dict, which: str, manifest_identity: dict) -> list[str]
             break
         step = index * 5
         stage = 1 if boundary is not None and step >= boundary else 0
-        prompt = expected_stages(which)[stage][0]
+        prompt = expected[stage][0]
         if receipt.get("prompt") != prompt:
             errors.append("payload prompt does not match stage instruction")
             break
@@ -122,22 +135,23 @@ def valid_initial(receipt: dict) -> bool:
     return True
 
 
-def load(roots: list[Path]):
+def load(roots: list[Path], arms=ARMS):
+    arms = validate_arms(arms)
     episodes, errors, summaries = {}, [], 0
     if len(roots) != 5:
         errors.append("expected five worker outputs")
     for root in roots:
         controller = json.loads((root / "controller.json").read_text())
         batches = controller.get("batches", [])
-        if (controller.get("status") != "complete" or len(batches) != 5
-                or [arm(row.get("name", "")) for row in batches] != list(ARMS)):
+        if (controller.get("status") != "complete" or len(batches) != len(arms)
+                or [arm(row.get("name", ""), arms) for row in batches] != list(arms)):
             errors.append(f"{root}: controller/batch order incomplete")
         elif (len({row.get("server_pid") for row in batches}) != 1
               or any(row.get("service_reused_from_previous_batch") is not True for row in batches[1:])):
-            errors.append(f"{root}: five arms did not reuse one service")
+            errors.append(f"{root}: selected arms did not reuse one service")
         for path in sorted(root.glob("*/summary.json")):
             summaries += 1
-            which = arm(path.parent.name)
+            which = arm(path.parent.name, arms)
             summary = json.loads(path.read_text())
             manifest = json.loads((path.parent / "manifest.json").read_text())
             identity = manifest.get("verified_service_identity")
@@ -165,29 +179,32 @@ def load(roots: list[Path]):
                 local_errors = audit_episode(value, which, identity)
                 errors.extend(f"{episode_path}: {message}" for message in local_errors)
                 episodes[slot] = {"value": value, "row": row, "identity": identity}
-    if summaries != 25:
-        errors.append("expected 25 summaries")
+    if summaries != 5 * len(arms):
+        errors.append(f"expected {5 * len(arms)} summaries")
     return episodes, errors
 
 
-def aggregate(roots: list[Path]) -> dict:
-    episodes, errors = load(roots)
-    expected = {(which, pair) for which in ARMS for pair in EXPECTED}
+def aggregate(roots: list[Path], arms=ARMS) -> dict:
+    arms = validate_arms(arms)
+    episodes, errors = load(roots, arms)
+    expected = {(which, pair) for which in arms for pair in EXPECTED}
     if set(episodes) != expected:
-        errors.append("coverage is not exact five arms x 19 cases")
+        errors.append(f"coverage is not exact {len(arms)} arms x 19 cases")
     identities = [row["identity"] for row in episodes.values()]
     if identities and (not isinstance(identities[0], dict)
                        or any(value != identities[0] for value in identities)):
         errors.append("actual service identities differ across arms/workers")
-    pairs, stats = [], {which: Counter() for which in ARMS}
+    pairs, stats = [], {which: Counter() for which in arms}
     for pair in sorted(EXPECTED):
-        if any((which, pair) not in episodes for which in ARMS):
+        if any((which, pair) not in episodes for which in arms):
             continue
         control = episodes[("control", pair)]
         initial = initial_receipt(control["value"])
         if not valid_initial(initial):
             errors.append(f"control/{pair}: initial RGB/state receipt invalid")
-        for which in ARMS[1:]:
+        for which in arms:
+            if which == "control":
+                continue
             candidate = episodes[(which, pair)]
             candidate_initial = initial_receipt(candidate["value"])
             if not valid_initial(candidate_initial):
@@ -204,7 +221,7 @@ def aggregate(roots: list[Path]) -> dict:
                 errors.append(f"probe/{pair}: causal gate failed: {gate['confounds']}")
         outcomes = {}
         base = bool(control["row"].get("success"))
-        for which in ARMS:
+        for which in arms:
             success = bool(episodes[(which, pair)]["row"].get("success"))
             outcomes[which] = success
             bucket = "hard10" if pair[0] == 4 else "other9"
@@ -215,14 +232,14 @@ def aggregate(roots: list[Path]) -> dict:
                 stats[which][label] += 1
         pairs.append({"init_id": pair[0], "replicate_id": pair[1], "success": outcomes})
     return {"schema": "pi05_goal3_phase_screen.aggregate.v1", "complete": not errors,
-            "coverage": {"expected_episodes": 95, "observed_episodes": len(episodes), "errors": errors},
+            "coverage": {"expected_episodes": len(arms) * 19, "observed_episodes": len(episodes), "errors": errors},
             "arm_scores": {which: {"hard_init4": [stats[which]["hard10"], 10],
                 "other_nine_inits": [stats[which]["other9"], 9],
                 "original_ten_init_rep0": [stats[which]["original10"], 10],
                 "paired_vs_control": {name: stats[which][name] for name in
                     ("both", "recovered", "regressed", "neither")} if which != "control" else None}
-                for which in ARMS},
-            "selection_warning": "Five predeclared arms are reported separately; no best-of-N pooled score.",
+                for which in arms},
+            "selection_warning": f"{len(arms)} predeclared arms are reported separately; no best-of-N pooled score.",
             "pairs": pairs}
 
 
@@ -230,10 +247,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--worker-output", action="append", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--arms", nargs="+", default=list(ARMS))
     args = parser.parse_args()
     if args.output.exists():
         raise FileExistsError("output is create-only")
-    result = aggregate(args.worker_output)
+    result = aggregate(args.worker_output, args.arms)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     return 0 if result["complete"] else 1

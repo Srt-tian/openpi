@@ -1,0 +1,30 @@
+{
+  "evidence": {
+    "phase": "phase1dev400",
+    "routing_scope": "task_only_no_init_image_or_state",
+    "status": "unvalidated"
+  },
+  "harness": {
+    "name": "pi05-base",
+    "remember": [],
+    "schema": 1,
+    "stages": [
+      {
+        "instruction": "pick up the black bowl on the stove and place it on the plate",
+        "max_steps": 220,
+        "on_timeout": "abort",
+        "skill": "pi05",
+        "until": null
+      }
+    ]
+  },
+  "parent_sha256": "ab1fc68745a2595bc50155b986c20373ca3a788e81bb1c8cd3a3701becb4dedc",
+  "proposal": {
+    "candidate": "spatial",
+    "rationale": "Developer-set per-task candidate; not an oracle or per-init rule."
+  },
+  "reasoning": "Explicit unchanged PI0.5 single-stage baseline at the official task cap.",
+  "schema": 1,
+  "status": "unvalidated",
+  "task": "libero_spatial/7"
+}

@@ -30,16 +30,29 @@ def dump(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
 
 
-def harness(name: str) -> dict:
+def prefix_variants(budgets: list[int]) -> dict:
+    if not budgets or any(type(value) is not int or not 1 <= value < 300 for value in budgets):
+        raise ValueError("prefix budgets must be unique integers in 1..299")
+    if len(set(budgets)) != len(budgets):
+        raise ValueError("prefix budgets must be unique integers in 1..299")
+    return {f"prefix{value}": [(PREFIX, value, "next"),
+                                (ORIGINAL, 300 - value, "abort")] for value in budgets}
+
+
+def harness(name: str, variants: dict) -> dict:
     return {"schema": 1, "name": f"pi05-goal3-{name}", "remember": [], "stages": [
         {"skill": "pi05", "instruction": instruction, "max_steps": steps,
          "until": None, "on_timeout": timeout}
-        for instruction, steps, timeout in VARIANTS[name]
+        for instruction, steps, timeout in variants[name]
     ]}
 
 
 def build(output: Path = DEFAULT_OUTPUT, baseline: Path = DEFAULT_BASELINE,
-          source: Path = SOURCE) -> Path:
+          source: Path = SOURCE, *, variants: dict | None = None,
+          namespace: str = "pi05_goal3_phase_screen", include_probe: bool = True) -> Path:
+    variants = VARIANTS if variants is None else variants
+    if not variants or not namespace.replace("_", "").isalnum():
+        raise ValueError("variants and a simple namespace are required")
     output, baseline, source = output.resolve(), baseline.resolve(), source.resolve()
     if output.exists():
         raise FileExistsError(f"create-only output already exists: {output}")
@@ -57,24 +70,31 @@ def build(output: Path = DEFAULT_OUTPUT, baseline: Path = DEFAULT_BASELINE,
     try:
         tasks = {key: {"instruction": row["instruction"], "max_steps": row["max_steps"]}
                  for key, row in rows.items()}
-        for variant in VARIANTS:
+        for variant in variants:
             digests = {}
             for key, relative in sorted(base_registry["tasks"].items()):
                 config = json.loads((baseline / relative).read_text())
                 if "pi05_control" in config:
                     raise ValueError("baseline task config contains pi05_control")
                 if key == "libero_goal/3":
-                    config["harness"] = harness(variant)
+                    config["harness"] = harness(variant, variants)
                     config["reasoning"] = (
                         "Unvalidated task-wide research candidate from audited probe01 phase-error "
                         "evidence; a fixed-duration prefix is not a certificate that its subgoal succeeded."
                     )
-                    config["evidence"] = {
+                    evidence = {
                         "source": "audited_probe01_phase_error",
                         "scope": "research_screen_not_full400_score",
                         "phase_semantics": "fixed_duration_not_subgoal_success_certificate",
                         "routing": "task_wide_no_init_image_state_or_object_oracle",
                     }
+                    if namespace == "pi05_goal3_early_prefix":
+                        evidence.update(
+                            prior_phase_screen={"hard_cases": "8/10",
+                                                "unconditional_regressions": 3},
+                            later_instruction_lease="lease40_and_lease80_zero_net_gain",
+                            current_hypothesis="earlier_fixed_handoff")
+                    config["evidence"] = evidence
                     config["proposal"] = {"candidate": variant,
                         "rationale": "Screen a fixed goal/3 prompt/phase hypothesis without oracle transitions."}
                     config["status"] = "unvalidated_research_candidate"
@@ -96,9 +116,9 @@ def build(output: Path = DEFAULT_OUTPUT, baseline: Path = DEFAULT_BASELINE,
                       "mode": "harness"}
             registries = [
                 ("control", "configs/pi05_harness/registry.json"),
-                ("probe", "configs/pi05_response_probe/registry.json"),
-                *[(name, f"configs/pi05_goal3_phase_screen/{name}/registry.json")
-                  for name in VARIANTS],
+                *([("probe", "configs/pi05_response_probe/registry.json")] if include_probe else []),
+                *[(name, f"configs/{namespace}/{name}/registry.json")
+                  for name in variants],
             ]
             dump(temporary / f"job_worker{worker}.json", {
                 "schema": "pi05_harness_worker.v1", "batches": [
@@ -114,8 +134,14 @@ def build(output: Path = DEFAULT_OUTPUT, baseline: Path = DEFAULT_BASELINE,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--output-root", type=Path)
     parser.add_argument("--baseline-root", type=Path, default=DEFAULT_BASELINE)
     parser.add_argument("--source-root", type=Path, default=SOURCE)
+    parser.add_argument("--prefix-budgets", nargs="+", type=int)
+    parser.add_argument("--namespace", default="pi05_goal3_phase_screen")
+    parser.add_argument("--without-probe", action="store_true")
     args = parser.parse_args()
-    print(build(args.output_root, args.baseline_root, args.source_root))
+    selected = prefix_variants(args.prefix_budgets) if args.prefix_budgets else None
+    destination = args.output_root or PATCH / "configs" / args.namespace
+    print(build(destination, args.baseline_root, args.source_root, variants=selected,
+                namespace=args.namespace, include_probe=not args.without_probe))

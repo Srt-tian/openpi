@@ -1,0 +1,30 @@
+{
+  "evidence": {
+    "phase": "phase1dev400",
+    "routing_scope": "task_only_no_init_image_or_state",
+    "status": "unvalidated"
+  },
+  "harness": {
+    "name": "pi05-base",
+    "remember": [],
+    "schema": 1,
+    "stages": [
+      {
+        "instruction": "put both the cream cheese box and the butter in the basket",
+        "max_steps": 520,
+        "on_timeout": "abort",
+        "skill": "pi05",
+        "until": null
+      }
+    ]
+  },
+  "parent_sha256": "b63d90359192578aea9032d5005976e4e3e33100bb1f8a2fcca8b7750a4e8e38",
+  "proposal": {
+    "candidate": "base",
+    "rationale": "Developer-set per-task candidate; not an oracle or per-init rule."
+  },
+  "reasoning": "Explicit unchanged PI0.5 single-stage baseline at the official task cap.",
+  "schema": 1,
+  "status": "unvalidated",
+  "task": "libero_10/1"
+}

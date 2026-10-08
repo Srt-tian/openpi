@@ -13,7 +13,8 @@ def evidence(which: str, steps: int = 110):
     stages = [{"instruction": instruction, "max_steps": budget, "skill": "pi05",
                "until": None, "on_timeout": "abort" if index == len(target.expected_stages(which)) - 1 else "next"}
               for index, (instruction, budget) in enumerate(target.expected_stages(which))]
-    boundary = 100 if which == "prefix100" else 150 if which == "prefix150" else None
+    expected = target.expected_stages(which)
+    boundary = expected[0][1] if len(expected) == 2 else None
     trace = [{"step": step, "stage": int(boundary is not None and step >= boundary),
               "skill": "pi05", "state": [0.0] * 8, "action": [0.0] * 7}
              for step in range(steps)]
@@ -36,6 +37,21 @@ def evidence(which: str, steps: int = 110):
 class Goal3PhaseScreenTest(unittest.TestCase):
     def test_prefix100_stage_and_prompt_pass(self):
         self.assertEqual(target.audit_episode(evidence("prefix100"), "prefix100", IDENTITY), [])
+
+    def test_new_prefix_boundaries_and_prompts_pass(self):
+        for which, boundary in (("prefix25", 25), ("prefix50", 50), ("prefix75", 75)):
+            with self.subTest(which=which):
+                value = evidence(which)
+                self.assertEqual(value["runner"]["report"]["trace"][boundary - 1]["stage"], 0)
+                self.assertEqual(value["runner"]["report"]["trace"][boundary]["stage"], 1)
+                self.assertEqual(target.audit_episode(value, which, IDENTITY), [])
+
+    def test_invalid_arm_sets_fail_closed(self):
+        for arms in ([], ["prefix25"], ["control", "control"], ["control", "prefix42"]):
+            with self.subTest(arms=arms), self.assertRaises(ValueError):
+                target.validate_arms(arms)
+        with self.assertRaises(ValueError):
+            target.expected_stages("prefix42")
 
     def test_early_done_before_switch_is_allowed(self):
         self.assertEqual(target.audit_episode(evidence("prefix150", 80), "prefix150", IDENTITY), [])
