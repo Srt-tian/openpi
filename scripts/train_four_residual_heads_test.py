@@ -1,4 +1,6 @@
 import numpy as np
+import jax.numpy as jnp
+import optax
 from scripts import train_four_residual_heads as target
 
 class E:
@@ -20,3 +22,12 @@ def test_parameter_content_hash_binds_names_sizes_and_bytes(tmp_path):
  (tmp_path/"a").write_bytes(b"one");(tmp_path/"b").write_bytes(b"two")
  first=target.params_content_hash(tmp_path);(tmp_path/"b").write_bytes(b"too")
  assert first!=target.params_content_hash(tmp_path)
+
+def test_first_real_optimizer_update_changes_head_and_is_finite():
+ params={"weight":jnp.array([0.0,0.0],dtype=jnp.float32)}
+ grads={"weight":jnp.array([1.0,-2.0],dtype=jnp.float32)}
+ tx=target.make_optimizer();state=tx.init(params)
+ updates,_=tx.update(grads,state,params);changed=optax.apply_updates(params,updates)
+ assert np.isfinite(np.asarray(updates["weight"])).all()
+ assert np.isfinite(np.linalg.norm(np.asarray(updates["weight"])))
+ assert not np.array_equal(np.asarray(changed["weight"]),np.asarray(params["weight"]))

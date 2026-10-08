@@ -13,6 +13,14 @@ from openpi.training import physical_residual_bank as bank
 
 TASK_NAME="PI05-LIBERO-TEST-V2";TOTAL_UPDATES=40_000;UPDATES_PER_HEAD=10_000
 SAVE_EVERY=20_000;EVAL_EVERY=2_000;SMOKE_SAVE_STEP=4;BATCH_SIZE=40;SEED=42
+INITIAL_LR=1e-6;PEAK_LR=1e-4;END_LR=1e-5;WARMUP_PER_HEAD=500
+
+def make_optimizer():
+    import optax
+    schedule=optax.warmup_cosine_decay_schedule(
+      INITIAL_LR,PEAK_LR,WARMUP_PER_HEAD,UPDATES_PER_HEAD,END_LR)
+    return optax.chain(optax.clip_by_global_norm(1),optax.adamw(
+      schedule,b1=.9,b2=.95,eps=1e-8,weight_decay=1e-4))
 
 def parse_args(argv=None):
     p=argparse.ArgumentParser();p.add_argument("--base-checkpoint",type=Path,default=legacy.DEFAULT_BASE)
@@ -110,15 +118,14 @@ def main():
     feature_dim=int(base_model.action_out_proj.in_features)
     head_config={"feature_dim":feature_dim,"state_dim":8,"width":256,"horizon":10,"heads":4,"ffn_dim":1024,"residual_bound":1.0}
     head_graphdef,heads=bank.initialize_head_bank(feature_dim,args.seed)
-    schedule=optax.warmup_cosine_decay_schedule(0,1e-4,500,UPDATES_PER_HEAD,1e-5)
-    tx=optax.chain(optax.clip_by_global_norm(1),optax.adamw(
-      schedule,b1=.9,b2=.95,eps=1e-8,weight_decay=1e-4))
+    tx=make_optimizer()
     opts=bank.initialize_optimizer_states(tx,heads);steps={s:0 for s in bank.SUITES}
     manifest={"schema":"pi05_residual_train.v1","task_name":TASK_NAME,"git_sha":git_sha,**commit_provenance,
       "seed":42,"total_updates":TOTAL_UPDATES,
       "updates_per_head":UPDATES_PER_HEAD,"batch_size":40,"holdout_every":EVAL_EVERY,"checkpoint_every":SAVE_EVERY,
       "smoke_checkpoint":{"global_step":SMOKE_SAVE_STEP,"directory":"checkpoints_smoke","not_regular_checkpoint":True},
-      "optimizer":{"name":"adamw","peak_lr":1e-4,"end_lr":1e-5,"warmup_per_head":500,"b1":.9,"b2":.95,"eps":1e-8,"weight_decay":1e-4,"clip":1,"ema":False},
+      "optimizer":{"name":"adamw","initial_lr":INITIAL_LR,"peak_lr":PEAK_LR,"end_lr":END_LR,
+        "warmup_per_head":WARMUP_PER_HEAD,"b1":.9,"b2":.95,"eps":1e-8,"weight_decay":1e-4,"clip":1,"ema":False},
       "head_config":head_config,"dataset_manifest":dataset_manifest,"base_inventory_sha256":base_inventory_hash,
       "base_params_content_sha256":base_content_hash,"norm_stats_sha256":norm_hash,
       "base":{"graph":"native_pi05_libero","frozen":True,"dtype":"bfloat16"},"head_dtype":"float32",
