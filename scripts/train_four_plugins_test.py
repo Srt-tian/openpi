@@ -1,16 +1,20 @@
 """CPU-only regressions for the four-plugin entrypoint."""
 
 import itertools
+import subprocess
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 from train_four_plugins import (
     DeterministicBatchSampler,
     numpy_collate,
+    parse_args,
     resolve_loss_status,
     sample_summary,
     validate_call_supervision,
+    validate_loss_args,
     validation_loss_records,
 )
 
@@ -37,6 +41,37 @@ class _FakeRolloutStore:
 
 
 class RunnerTests(unittest.TestCase):
+    def test_explicit_fm_only_zeros_auxiliary_weights_and_records_selection(self):
+        args = parse_args(["--fm-only", "--handoff-weight", "0.7", "--call-weight", "0.9"])
+        validate_loss_args(args)
+        self.assertEqual(args.handoff_weight, 0.0)
+        self.assertEqual(args.call_weight, 0.0)
+        status, handoffs, calls = resolve_loss_status(args, None)
+        self.assertEqual(status["mode"], "stage_a_fm_only")
+        self.assertEqual(status["stage_selection"], "user_explicit_stage_a_fm_only")
+        self.assertEqual(status["weights"], {"handoff": 0.0, "call": 0.0})
+        self.assertTrue(all(
+            item["disabled_reason"] == "user_explicit_fm_only"
+            for item in status["handoff"].values()
+        ))
+        self.assertEqual(status["call"]["disabled_reason"], "user_explicit_fm_only")
+        self.assertEqual(handoffs, {suite: [] for suite in ("spatial", "object", "goal", "long")})
+        self.assertEqual(calls, [])
+
+    def test_fm_only_rejects_every_joint_loss_input_mode(self):
+        with self.assertRaisesRegex(ValueError, "rollout-manifest"):
+            validate_loss_args(parse_args(["--fm-only", "--rollout-manifest", "labels.json"]))
+        with self.assertRaisesRegex(ValueError, "require-joint-losses"):
+            validate_loss_args(parse_args(["--fm-only", "--require-joint-losses"]))
+
+    def test_generic_runner_without_new_flag_remains_backward_compatible(self):
+        args = parse_args([])
+        validate_loss_args(args)
+        status, _, _ = resolve_loss_status(args, None)
+        self.assertEqual(status["mode"], "stage_a_fm_only")
+        self.assertEqual(status["stage_selection"], "resolved_from_joint_loss_inputs")
+        self.assertEqual(status["weights"], {"handoff": 0.3, "call": 0.1})
+
     def test_collates_numpy_boolean_masks(self):
         sample = {"image_mask": {"camera": np.True_}, "state": np.zeros(8, np.float32)}
         batch = numpy_collate([sample, sample])
@@ -122,6 +157,60 @@ class RunnerTests(unittest.TestCase):
                 ("call", "validation"),
             ],
         )
+
+
+class LauncherArgumentTests(unittest.TestCase):
+    launcher = Path(__file__).with_name("launch_pi05_libero_test.sh")
+    helper = """
+source "$1"
+shift
+classify_launch_args "$@"
+validate_launch_mode
+build_runner_argv "$@"
+printf '<%s>\\n' "${PI05_RUNNER_ARGS[@]}"
+"""
+
+    def run_helper(self, *args):
+        return subprocess.run(
+            ["bash", "-c", self.helper, "stage-a-test", str(self.launcher), *args],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    def test_launcher_preserves_explicit_fm_only_argv_exactly(self):
+        result = self.run_helper("--fm-only", "--output-dir", "/tmp/run,with,commas", "--batch-size=32")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.splitlines(),
+            ["<--fm-only>", "<--output-dir>", "</tmp/run,with,commas>", "<--batch-size=32>"],
+        )
+
+    def test_launcher_joint_mode_preserves_argv_and_appends_strict_gate(self):
+        result = self.run_helper(
+            "--output-dir=/tmp/run,with,commas", "--rollout-manifest", "/tmp/labels.json"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.splitlines(),
+            [
+                "<--output-dir=/tmp/run,with,commas>",
+                "<--rollout-manifest>",
+                "</tmp/labels.json>",
+                "<--require-joint-losses>",
+            ],
+        )
+
+    def test_launcher_rejects_fm_only_conflicts_and_implicit_fallback(self):
+        for args, message in (
+            (("--fm-only", "--rollout-manifest=x.json"), "rollout-manifest"),
+            (("--fm-only", "--require-joint-losses"), "require-joint-losses"),
+            (("--batch-size", "32"), "requires --rollout-manifest"),
+        ):
+            with self.subTest(args=args):
+                result = self.run_helper(*args)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn(message, result.stderr)
 
 
 if __name__ == "__main__":

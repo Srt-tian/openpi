@@ -31,8 +31,8 @@
     "splits": "Root episode groups must not cross training and validation. Official evaluation records are forbidden as training input."
   },
   "activation": {
-    "dedicated_launch": "Requires --rollout-manifest and --require-joint-losses; refuses missing labels rather than silently running a baseline",
-    "explicit_baseline": "Generic Python runner without a manifest retains the old FM path and logs disabled reasons",
+    "dedicated_launch": "Default requires --rollout-manifest and --require-joint-losses; refuses missing labels rather than silently running a baseline. An explicitly approved Stage A run must pass --fm-only, which rejects joint-loss inputs.",
+    "explicit_baseline": "Named launcher --fm-only resolves both auxiliary weights to zero and records user_explicit_stage_a_fm_only. Generic Python runner without a manifest retains its backward-compatible FM path and logs disabled reasons.",
     "strict_coverage": "Training handoff labels for all four target adapters and at least one uncensored training call outcome for each of the five callable policies; never fabricate missing negatives",
     "actual_rollout_labels_prepared": false,
     "gpu_training_started": false

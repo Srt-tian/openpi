@@ -38,7 +38,7 @@ EVAL_EVERY = 400
 LOGGER = logging.getLogger(__name__)
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--base-checkpoint", type=Path, default=DEFAULT_BASE)
     p.add_argument("--data-root", type=Path, default=DEFAULT_DATA)
@@ -53,18 +53,34 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--handoff-weight", type=float, default=0.3)
     p.add_argument("--call-weight", type=float, default=0.1)
     p.add_argument("--require-joint-losses", action="store_true")
-    return p.parse_args()
+    p.add_argument(
+        "--fm-only",
+        action="store_true",
+        help="explicitly approved Stage A: disable handoff and call losses and require no rollout labels",
+    )
+    return p.parse_args(argv)
 
 
 def validate_loss_args(args: argparse.Namespace) -> None:
+    fm_only = bool(getattr(args, "fm_only", False))
+    if fm_only and args.rollout_manifest is not None:
+        raise ValueError("--fm-only cannot be combined with --rollout-manifest")
+    if fm_only and args.require_joint_losses:
+        raise ValueError("--fm-only cannot be combined with --require-joint-losses")
     for name in ("handoff_weight", "call_weight"):
         value = getattr(args, name)
         if not np.isfinite(value) or value < 0:
             raise ValueError(f"--{name.replace('_', '-')} must be finite and non-negative")
+    if fm_only:
+        # Make the resolved configuration and saved run manifest explicit rather
+        # than relying on absence of labels to deactivate auxiliary objectives.
+        args.handoff_weight = 0.0
+        args.call_weight = 0.0
 
 
 def resolve_loss_status(args: argparse.Namespace, rollout_store) -> tuple[dict[str, Any], dict[str, list[Any]], list[Any]]:
     """Resolve label availability without importing JAX or loading model parameters."""
+    fm_only = bool(getattr(args, "fm_only", False))
     handoff_records: dict[str, list[Any]] = {suite: [] for suite in SUITES}
     call_records: list[Any] = []
     if rollout_store is not None:
@@ -80,7 +96,9 @@ def resolve_loss_status(args: argparse.Namespace, rollout_store) -> tuple[dict[s
 
     handoff: dict[str, dict[str, Any]] = {}
     for suite in SUITES:
-        if rollout_store is None:
+        if fm_only:
+            reason = "user_explicit_fm_only"
+        elif rollout_store is None:
             reason = "no_rollout_manifest"
         elif args.handoff_weight == 0:
             reason = "zero_weight"
@@ -93,7 +111,9 @@ def resolve_loss_status(args: argparse.Namespace, rollout_store) -> tuple[dict[s
             "count": len(handoff_records[suite]),
             "disabled_reason": reason,
         }
-    if rollout_store is None:
+    if fm_only:
+        call_reason = "user_explicit_fm_only"
+    elif rollout_store is None:
         call_reason = "no_rollout_manifest"
     elif args.call_weight == 0:
         call_reason = "zero_weight"
@@ -112,6 +132,9 @@ def resolve_loss_status(args: argparse.Namespace, rollout_store) -> tuple[dict[s
                  ],
                  "disabled_reason": call_reason},
         "routing_head_status": "experimental_uncalibrated",
+        "stage_selection": (
+            "user_explicit_stage_a_fm_only" if fm_only else "resolved_from_joint_loss_inputs"
+        ),
     }
     active_handoff_targets = [suite for suite, item in handoff.items() if item["active"]]
     status["active_handoff_targets"] = active_handoff_targets
@@ -552,6 +575,8 @@ def main() -> None:
             ),
             "stage_a_fm_only": "stage A: four independent FM LoRA adapters; joint losses disabled",
         }[loss_status["mode"]],
+        "stage_selection": loss_status["stage_selection"],
+        "fm_only_requested": bool(args.fm_only),
         "resolved_loss_config": loss_status,
         "loss_config": dataclasses.asdict(loss_config),
         "rollout_manifest_summary": rollout_summary,
