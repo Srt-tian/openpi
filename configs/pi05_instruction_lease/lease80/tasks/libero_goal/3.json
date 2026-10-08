@@ -1,0 +1,36 @@
+{
+  "evidence": {
+    "phase": "phase1dev400",
+    "routing_scope": "task_only_no_init_image_or_state",
+    "status": "unvalidated"
+  },
+  "harness": {
+    "name": "pi05-base",
+    "remember": [],
+    "schema": 1,
+    "stages": [
+      {
+        "instruction": "open the top drawer and put the bowl inside",
+        "max_steps": 300,
+        "on_timeout": "abort",
+        "skill": "pi05",
+        "until": null
+      }
+    ]
+  },
+  "parent_sha256": "8f4079a3c03449f40c77beb9bad2990c9fb28b5d8bbf9496b4a49e5eb02bd4e0",
+  "pi05_control": {
+    "enabled": true,
+    "instruction": "open the top drawer",
+    "kind": "instruction_lease_v1",
+    "lease_steps": 80
+  },
+  "proposal": {
+    "candidate": "base",
+    "rationale": "Developer-set per-task candidate; not an oracle or per-init rule."
+  },
+  "reasoning": "Explicit unchanged PI0.5 single-stage baseline at the official task cap.",
+  "schema": 1,
+  "status": "unvalidated",
+  "task": "libero_goal/3"
+}

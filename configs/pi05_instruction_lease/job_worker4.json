@@ -1,0 +1,26 @@
+{
+  "batches": [
+    {
+      "cases": "configs/pi05_response_probe/cases_worker4.json",
+      "mode": "harness",
+      "name": "worker4_control",
+      "registry": "configs/pi05_harness/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    },
+    {
+      "cases": "configs/pi05_response_probe/cases_worker4.json",
+      "mode": "harness",
+      "name": "worker4_lease40",
+      "registry": "configs/pi05_instruction_lease/lease40/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    },
+    {
+      "cases": "configs/pi05_response_probe/cases_worker4.json",
+      "mode": "harness",
+      "name": "worker4_lease80",
+      "registry": "configs/pi05_instruction_lease/lease80/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    }
+  ],
+  "schema": "pi05_harness_worker.v1"
+}

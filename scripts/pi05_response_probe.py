@@ -33,6 +33,35 @@ def _vector(value: Any, size: int, label: str) -> np.ndarray:
     return out.copy()
 
 
+def open_downward_stall_guard(
+    native_rows: Any,
+    state8: Any,
+    context: Mapping[str, Any],
+    minimum_remaining: int,
+) -> dict[str, Any] | None:
+    """Pure open/downward-stall predicate over executed action/post-state rows."""
+    state = np.asarray(state8, dtype=np.float64)
+    if (state.shape != (STATE_DIM,) or not np.isfinite(state).all()
+            or context.get("actual_executed", -1) < MIN_ACTUAL
+            or min(context.get("remaining_episode", -1),
+                   context.get("remaining_stage", -1)) < minimum_remaining
+            or len(native_rows) != WINDOW):
+        return None
+    actions = np.asarray([row[0] for row in native_rows], dtype=np.float64)
+    states = np.asarray([row[1] for row in native_rows], dtype=np.float64)
+    if (actions.shape != (WINDOW, ACTION_DIM) or states.shape != (WINDOW, STATE_DIM)
+            or not np.isfinite(actions).all() or not np.isfinite(states).all()):
+        return None
+    z_span = float(np.ptp(states[:, 2]))
+    negative_z = int(np.count_nonzero(actions[:, 2] < -.2))
+    aperture = abs(float(state[6] - state[7]))
+    if z_span > .005 or np.any(actions[:, 6] > -.5) or negative_z < 24 or aperture < .075:
+        return None
+    return {"z_span_m": z_span, "negative_z_commands": negative_z,
+            "maximum_gripper_command": float(actions[:, 6].max()),
+            "aperture_m": aperture, "context": copy.deepcopy(dict(context))}
+
+
 class Pi05ExecutionFeedbackEnvironment:
     """Transparent environment adapter reporting only action and post-state8."""
 
@@ -137,24 +166,11 @@ class Pi05ResponseProbeSkill:
         return abs(float(state[6] - state[7]))
 
     def _guard(self, minimum_remaining: int) -> dict[str, Any] | None:
-        context = self._context
-        if (context is None or self._state is None
-                or context["actual_executed"] < MIN_ACTUAL
-                or min(context["remaining_episode"], context["remaining_stage"]) < minimum_remaining
-                or len(self._native) != WINDOW):
+        if self._context is None or self._state is None:
             return None
-        actions = np.asarray([row[0] for row in self._native], dtype=np.float64)
-        states = np.asarray([row[1] for row in self._native], dtype=np.float64)
-        if actions.shape != (WINDOW, ACTION_DIM) or states.shape != (WINDOW, STATE_DIM):
-            return None
-        z_span = float(np.ptp(states[:, 2]))
-        negative_z = int(np.count_nonzero(actions[:, 2] < -.2))
-        aperture = self._aperture(self._state)
-        if z_span > .005 or np.any(actions[:, 6] > -.5) or negative_z < 24 or aperture < .075:
-            return None
-        return {"z_span_m": z_span, "negative_z_commands": negative_z,
-                "maximum_gripper_command": float(actions[:, 6].max()),
-                "aperture_m": aperture, "context": copy.deepcopy(context)}
+        return open_downward_stall_guard(
+            self._native, self._state, self._context, minimum_remaining
+        )
 
     def _record_emission(self, actions: np.ndarray, kind: str):
         assert self._context is not None

@@ -102,6 +102,26 @@ class CliValidationTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "pi05_control"):
                     cli.load_task_control_snapshot(registry)
 
+    def test_instruction_lease_control_is_exact_and_bounded(self):
+        valid = {"pi05_control": {"kind": "instruction_lease_v1", "enabled": True,
+                                  "instruction": "open the top drawer", "lease_steps": 40}}
+        with tempfile.TemporaryDirectory() as directory:
+            registry = self.write_control_registry(directory, valid)
+            control = cli.load_task_control_snapshot(registry)["controls"]["libero_goal/3"]
+            self.assertEqual(control, valid["pi05_control"])
+        invalid = [
+            {**valid["pi05_control"], "enabled": False},
+            {**valid["pi05_control"], "instruction": " "},
+            {**valid["pi05_control"], "lease_steps": 60},
+            {**valid["pi05_control"], "lease_steps": True},
+            {**valid["pi05_control"], "unknown": 1},
+        ]
+        for control in invalid:
+            with self.subTest(control=control), tempfile.TemporaryDirectory() as directory:
+                registry = self.write_control_registry(directory, {"pi05_control": control})
+                with self.assertRaisesRegex(ValueError, "pi05_control"):
+                    cli.load_task_control_snapshot(registry)
+
     def test_task_config_digest_mismatch_is_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             registry = self.write_control_registry(directory, {
