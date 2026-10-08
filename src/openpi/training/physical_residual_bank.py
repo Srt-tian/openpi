@@ -29,6 +29,11 @@ SUITES = ("spatial", "object", "goal", "long")
 FORMAT = "pi05-physical-residual-head-bank-v1"
 
 
+def _require_suite_bank(values: Mapping[str, Any], label: str):
+    if len(values) != len(SUITES) or set(values) != set(SUITES):
+        raise ValueError(f"{label} must contain exactly the four suites {SUITES}")
+
+
 def initialize_native_base(checkpoint_path: str, mesh):
     """Restore the official native pi05_libero graph with no LoRA variables."""
     from openpi.models import pi0_config
@@ -59,8 +64,7 @@ def initialize_head_bank(feature_dim: int, seed: int, *, state_dim: int = 8, wid
 
 
 def initialize_optimizer_states(tx: optax.GradientTransformation, states: Mapping[str, nnx.State]):
-    if tuple(states) != SUITES:
-        raise ValueError(f"head bank order must be {SUITES}")
+    _require_suite_bank(states, "head bank")
     return {suite: tx.init(states[suite]) for suite in SUITES}
 
 
@@ -70,8 +74,8 @@ def update_selected_head(
     loss_kwargs: Mapping[str, Any] | None = None,
 ):
     """Update exactly one suite head; inactive state and optimizer objects are retained."""
-    if tuple(states) != SUITES or tuple(optimizer_states) != SUITES:
-        raise ValueError("head/optimizer banks must contain the ordered four suites")
+    _require_suite_bank(states, "head bank")
+    _require_suite_bank(optimizer_states, "optimizer bank")
     suite = SUITES[int(global_step) % len(SUITES)]
     active_state = states[suite]
 
@@ -138,8 +142,9 @@ def save_head_bank(
     norm_stats_sha256: str, base_manifest_sha256: str, head_config: Mapping[str, int],
     metadata: Mapping[str, Any] | None = None,
 ):
-    if tuple(states) != SUITES or tuple(optimizer_states) != SUITES or tuple(steps) != SUITES:
-        raise ValueError("checkpoint requires ordered four-suite head/optimizer/step banks")
+    _require_suite_bank(states, "checkpoint head bank")
+    _require_suite_bank(optimizer_states, "checkpoint optimizer bank")
+    _require_suite_bank(steps, "checkpoint step bank")
     if any(type(steps[suite]) is not int or steps[suite] < 0 for suite in SUITES):
         raise ValueError("suite steps must be nonnegative integers")
     target = Path(path).expanduser().resolve()
@@ -179,6 +184,8 @@ def load_head_bank(
     expected_norm_stats_sha256: str, expected_base_manifest_sha256: str,
     expected_head_config: Mapping[str, int],
 ):
+    _require_suite_bank(state_templates, "head template bank")
+    _require_suite_bank(optimizer_templates, "optimizer template bank")
     root = Path(path).expanduser().resolve(); manifest = json.loads((root / "manifest.json").read_text())
     if (manifest.get("schema_version"), manifest.get("format"), tuple(manifest.get("suite_order", ()))) != (1, FORMAT, SUITES):
         raise ValueError("unsupported residual head bank manifest")

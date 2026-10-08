@@ -112,3 +112,33 @@ def test_checkpoint_create_only_and_invalid_suite(tmp_path):
     with pytest.raises(FileExistsError): bank.save_head_bank(path,states,opts,steps,
         base_checkpoint_path="/base",norm_stats_sha256="a",base_manifest_sha256="b",head_config=config)
     with pytest.raises(ValueError): bank.restore_suite_head(graphdef,states,"unknown")
+
+
+def test_device_put_and_mixed_insertion_order_checkpoint_roundtrip(tmp_path):
+    _,states=bank.initialize_head_bank(4,9,width=8,horizon=2,ffn_dim=16);tx=optax.adam(1e-3)
+    opts=bank.initialize_optimizer_states(tx,states)
+    states=jax.device_put(states);opts=jax.device_put(opts)
+    # JAX may canonicalize mapping keys; checkpoint validity must not depend on insertion order.
+    states={suite:states[suite] for suite in reversed(bank.SUITES)}
+    opts={suite:opts[suite] for suite in ("goal","spatial","long","object")}
+    steps={suite:1 for suite in ("object","long","spatial","goal")}
+    config={"feature_dim":4}
+    path=bank.save_head_bank(tmp_path/"smoke_step_4",states,opts,steps,
+      base_checkpoint_path="/base",norm_stats_sha256="n",base_manifest_sha256="m",head_config=config)
+    restored,restored_opts,restored_steps,_=bank.load_head_bank(path,states,opts,
+      expected_base_checkpoint_path="/base",expected_norm_stats_sha256="n",
+      expected_base_manifest_sha256="m",expected_head_config=config)
+    assert tuple(restored)==bank.SUITES and tuple(restored_opts)==bank.SUITES
+    assert restored_steps=={suite:1 for suite in bank.SUITES}
+
+
+@pytest.mark.parametrize("bad_key", [None,"extra"])
+def test_checkpoint_rejects_missing_or_extra_bank(tmp_path,bad_key):
+    _,states=bank.initialize_head_bank(4,10,width=8,horizon=2,ffn_dim=16);tx=optax.sgd(1e-2)
+    opts=bank.initialize_optimizer_states(tx,states);steps={suite:0 for suite in bank.SUITES}
+    states=dict(states)
+    if bad_key is None: states.pop("long")
+    else: states[bad_key]=states["long"]
+    with pytest.raises(ValueError,match="exactly the four suites"):
+      bank.save_head_bank(tmp_path/f"bad_{bad_key}",states,opts,steps,
+        base_checkpoint_path="/base",norm_stats_sha256="n",base_manifest_sha256="m",head_config={"feature_dim":4})
