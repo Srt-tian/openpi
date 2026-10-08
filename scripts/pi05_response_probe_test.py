@@ -116,7 +116,7 @@ class ResponseProbeTest(unittest.TestCase):
         driver = self.enter_strong_lift()
         first = driver.act(102)
         np.testing.assert_array_equal(first[0], [0, 0, .2, 0, 0, 0, 1])
-        driver.execute(first, [state(z=.425, aperture=.065)])
+        driver.execute(first, [state(z=.426, aperture=.065)])
         settle = driver.act(101)
         np.testing.assert_array_equal(settle[0], [0, 0, 0, 0, 0, 0, 1])
         self.assertEqual(driver.skill._manual_emitted, 6)  # 4 close + 1 lift + 1 settle

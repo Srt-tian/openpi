@@ -256,8 +256,7 @@ class Pi05ResponseProbeSkill:
                     event["close_response"] = False
             elif self._phase == "lift":
                 if (self._phase_emitted >= self.max_lift_steps
-                        or float(self._state[2]) - self._lift_start_z + 1e-12
-                        >= self.lift_target_m):
+                        or float(self._state[2]) - self._lift_start_z >= self.lift_target_m):
                     self._phase, self._phase_emitted = "settle", 0
                     continue
                 if not self._budget_ok((self.max_lift_steps - self._phase_emitted) + 2):
