@@ -14,6 +14,9 @@ from openpi.training import physical_residual_bank as bank
 TASK_NAME="PI05-LIBERO-TEST-V2";TOTAL_UPDATES=40_000;UPDATES_PER_HEAD=10_000
 SAVE_EVERY=20_000;EVAL_EVERY=2_000;SMOKE_SAVE_STEP=4;BATCH_SIZE=40;SEED=42
 INITIAL_LR=1e-6;PEAK_LR=1e-4;END_LR=1e-5;WARMUP_PER_HEAD=500
+HORIZON=10;HOLDOUT_BATCH_SIZE=80
+REQUIRED_EVAL_METRICS=frozenset({"deployed_physical_fm","deployed_physical_gain",
+    "base_physical_error","mean_surrogate_gate","optimal_gate_target"})
 
 def make_optimizer():
     import optax
@@ -33,7 +36,9 @@ def parse_args(argv=None):
 def intervals_by_task(dataset):
     result={};start=0
     for end,episode in zip(dataset._ends.tolist(),dataset.episodes,strict=True):
-        result.setdefault(episode.task,[]).append((start,int(end)-start));start=int(end)
+        length=int(end)-start
+        if length<HORIZON:raise ValueError(f"episode {episode.index} length {length} is shorter than horizon {HORIZON}")
+        result.setdefault(episode.task,[]).append((start,length-HORIZON+1));start=int(end)
     if len(result)!=10:return (_ for _ in ()).throw(ValueError("suite dataset must contain exactly ten tasks"))
     return result
 
@@ -50,8 +55,21 @@ class TaggedTransformedDataset:
     def __getitem__(self,index):
         pos=int(np.searchsorted(self.dataset._ends,index,side="right"));episode=self.dataset.episodes[pos];task=episode.task
         start=0 if pos==0 else int(self.dataset._ends[pos-1]);frame=index-start
+        if frame+HORIZON>episode.length:raise IndexError("sample does not contain one complete action chunk")
         value=self.transform(dict(self.dataset[index]));value["v2_task_id"]=np.int32(self.tasks.index(task))
-        value["v2_valid_horizon"]=(np.arange(10)<episode.length-frame).astype(np.float32);return value
+        value["v2_valid_horizon"]=np.ones(HORIZON,dtype=np.float32);return value
+
+def fixed_holdout_indices(dataset,seed):
+    intervals=intervals_by_task(dataset)
+    batches=[balanced_task_batch(intervals,seed=seed,step=step)[0] for step in (0,1)]
+    indices=np.concatenate(batches).tolist()
+    if len(indices)!=HOLDOUT_BATCH_SIZE:raise AssertionError("holdout must contain exactly 80 full chunks")
+    return indices
+
+def fixed_eval_rng(seed,suite):
+    import jax
+    if suite not in bank.SUITES:raise ValueError("unknown suite")
+    return jax.random.fold_in(jax.random.key(seed),20_000+bank.SUITES.index(suite))
 
 def make_loaders(args,datasets,transform,steps,train):
     from torch.utils.data import DataLoader
@@ -59,7 +77,7 @@ def make_loaders(args,datasets,transform,steps,train):
     for i,suite in enumerate(bank.SUITES):
         raw=datasets[suite];ds=TaggedTransformedDataset(raw,transform)
         sampler=(BalancedSampler(raw,args.seed+i,steps[suite]) if train
-                 else legacy.FixedIndexBatchSampler(raw.diagnostic_indices(80)))
+                 else legacy.FixedIndexBatchSampler(fixed_holdout_indices(raw,args.seed+i)))
         workers=args.num_workers if train else 0
         out[suite]=DataLoader(ds,batch_sampler=sampler,num_workers=workers,collate_fn=legacy.numpy_collate,
           multiprocessing_context="spawn" if workers else None,persistent_workers=bool(workers),
@@ -102,7 +120,7 @@ def main():
         for suite in bank.SUITES:
             _,actions,tasks,valid=batch_parts(next(iter(loaders[suite])));counts=np.bincount(tasks,minlength=10)
             report["batches"][suite]={"actions":list(actions.shape),"task_counts":counts.tolist(),"valid_rows":int(valid.sum())}
-            if actions.shape!=(40,10,32) or counts.tolist()!=[4]*10:raise ValueError("balanced transformed batch contract failed")
+            if actions.shape!=(40,10,32) or counts.tolist()!=[4]*10 or not np.all(valid==1):raise ValueError("balanced full-chunk batch contract failed")
         print(json.dumps(report,sort_keys=True));return
     if os.environ.get("JAX_PROCESS_COUNT","1")!="1":raise RuntimeError("single-host process required")
     if "WANDB_API_KEY" not in os.environ:raise RuntimeError("WANDB_API_KEY must be injected")
@@ -150,12 +168,29 @@ def main():
     base_leaf_identity=tuple(id(leaf) for leaf in jax.tree.leaves(frozen))
     loaders=make_loaders(args,train,transform,steps,True);iters={s:iter(loaders[s]) for s in bank.SUITES}
     val_loaders=make_loaders(args,val,transform,zero,False);val_batches={s:batch_parts(next(iter(val_loaders[s]))) for s in bank.SUITES}
+    for name,(_,actions,tasks,valid) in val_batches.items():
+        if actions.shape!=(HOLDOUT_BATCH_SIZE,HORIZON,32) or valid.shape!=(HOLDOUT_BATCH_SIZE,HORIZON) or not np.all(valid==1):
+            raise ValueError(f"holdout batch is not 80 complete chunks: {name}")
+        if np.bincount(tasks,minlength=10).tolist()!=[8]*10:raise ValueError(f"holdout task balance failed: {name}")
     step_fn=bank.make_sharded_head_step(base_graphdef,head_graphdef,tx,mesh)
     eval_fn=bank.make_sharded_head_eval(base_graphdef,head_graphdef,mesh)
     run=wandb.init(project="physicalrsi",name=TASK_NAME,config=manifest);stop=False
     def request_stop(*_):
         nonlocal stop;stop=True
     signal.signal(signal.SIGTERM,request_stop);signal.signal(signal.SIGINT,request_stop)
+    def evaluate_holdout(step):
+        logs={}
+        for name in bank.SUITES:
+            vo,va,vt,vv=legacy.put_batch_on_mesh(val_batches[name],mesh)
+            value,metric=eval_fn(frozen,heads[name],vo,va,vt,vv,
+              fixed_eval_rng(args.seed,name),steps[name])
+            values={"loss":value,**metric}
+            host={key:float(np.asarray(jax.device_get(item))) for key,item in values.items()}
+            missing=REQUIRED_EVAL_METRICS-set(host)
+            if missing:raise ValueError(f"holdout metrics missing deployed gate diagnostics: {name}: {sorted(missing)}")
+            if not all(np.isfinite(item) for item in host.values()):raise FloatingPointError(f"non-finite holdout metric: {name}: {host}")
+            logs.update({f"holdout/{name}/{key}":item for key,item in host.items()})
+        run.log(logs,step=step);return logs
     global_step=sum(steps.values())
     while global_step<TOTAL_UPDATES:
         suite=bank.SUITES[global_step%4];obs,actions,tasks,valid=batch_parts(next(iters[suite]));obs,actions,tasks,valid=legacy.put_batch_on_mesh((obs,actions,tasks,valid),mesh)
@@ -169,13 +204,7 @@ def main():
         steps[suite]+=1;global_step+=1;run.log({f"train/{suite}/{k}":v for k,v in host_metrics.items()},step=global_step)
         if global_step%EVAL_EVERY==0:
             # Holdout is diagnostic only; no optimizer update and no success claim.
-            logs={}
-            for name in bank.SUITES:
-                vo,va,vt,vv=legacy.put_batch_on_mesh(val_batches[name],mesh)
-                value,metric=eval_fn(frozen,heads[name],vo,va,vt,vv,
-                  jax.random.fold_in(jax.random.key(args.seed),20_000+global_step),steps[name])
-                logs[f"holdout/{name}/loss"]=float(np.asarray(jax.device_get(value)))
-            run.log(logs,step=global_step)
+            evaluate_holdout(global_step)
         if global_step==SMOKE_SAVE_STEP or global_step%SAVE_EVERY==0 or stop:
             checkpoint_group="checkpoints_smoke" if global_step==SMOKE_SAVE_STEP else "checkpoints"
             checkpoint_path=args.output_dir/checkpoint_group/f"step_{global_step:08d}"
@@ -192,6 +221,9 @@ def main():
                 print(json.dumps({"startup_smoke":"passed","global_step":global_step,
                   "base_invariant":"immutable non-donated state leaf identity unchanged",
                   "checkpoint":str(checkpoint_path)},sort_keys=True),flush=True)
+                smoke_eval=evaluate_holdout(global_step)
+                print(json.dumps({"startup_holdout":"passed","examples_per_suite":HOLDOUT_BATCH_SIZE,
+                  "finite_metrics":len(smoke_eval)},sort_keys=True),flush=True)
         if stop:break
     run.finish()
 
