@@ -93,11 +93,12 @@ class PhysicalResidualHead(nnx.Module):
         state = jnp.broadcast_to(state[:, None, : self.state_dim], (batch, horizon, self.state_dim))
         time_features = jnp.stack((time, jnp.sin(jnp.pi * time), jnp.cos(jnp.pi * time)), axis=-1)
         features = jnp.concatenate((hidden, state, velocity[..., :PHYSICAL_DIM], time_features), axis=-1)
+        features = jnp.where(mask[..., None], features, 0)
         trunk = self.in_proj(features) + self.position_embedding[None]
         trunk = self.block0(trunk, mask)
         trunk = self.final_norm(self.block1(trunk, mask))
-        residual7 = self.residual_bound * jnp.tanh(self.residual_out(trunk)) * mask[..., None]
-        pooled = jnp.sum(trunk * mask[..., None], axis=1) / jnp.maximum(jnp.sum(mask, axis=1, keepdims=True), 1)
+        residual7 = jnp.where(mask[..., None], self.residual_bound * jnp.tanh(self.residual_out(trunk)), 0)
+        pooled = jnp.sum(jnp.where(mask[..., None], trunk, 0), axis=1) / jnp.maximum(jnp.sum(mask, axis=1, keepdims=True), 1)
         chunk_gate = jax.nn.sigmoid(self.gate_out(pooled))[:, None, :]
         gate = jnp.broadcast_to(chunk_gate, (batch, horizon, 1))
         residual32 = jnp.pad(residual7, ((0, 0), (0, 0), (0, PADDED_ACTION_DIM - PHYSICAL_DIM)))

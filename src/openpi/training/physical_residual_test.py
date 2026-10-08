@@ -198,6 +198,18 @@ def test_masked_attention_pooling_and_invalid_residual_zero():
         head(hidden,state,velocity,time,jnp.zeros((2,3)))
 
 
+def test_masked_nan_tail_cannot_change_valid_outputs_with_learned_residual():
+    head=PhysicalResidualHead(5,width=8,horizon=3,ffn_dim=16,rngs=nnx.Rngs(16))
+    head.residual_out.kernel.value=jnp.full_like(head.residual_out.kernel.value,.02)
+    hidden,state,velocity,time=inputs();mask=jnp.array([[1,1,0],[1,1,0]],dtype=jnp.float32)
+    clean=head(hidden,state,velocity,time,mask)
+    dirty=head(hidden.at[:,2].set(jnp.nan),state,velocity.at[:,2].set(jnp.nan),
+               time.at[:,2].set(jnp.nan),mask)
+    np.testing.assert_array_equal(dirty["residual7"][:,2],0)
+    np.testing.assert_allclose(dirty["residual7"][:,:2],clean["residual7"][:,:2],rtol=0,atol=0)
+    np.testing.assert_allclose(dirty["surrogate_gain_gate"],clean["surrogate_gain_gate"],rtol=0,atol=0)
+
+
 def test_grouped_physical_loss_equal_weights_xyz_rotation_grip():
     base=jnp.zeros((3,1,32));gate=jnp.ones((3,1,1));tasks=jnp.arange(3);residual=jnp.zeros((3,1,7))
     target=jnp.zeros((3,1,32)).at[0,0,:3].set(1).at[1,0,3:6].set(1).at[2,0,6].set(1)
