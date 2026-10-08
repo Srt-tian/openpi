@@ -19,6 +19,7 @@ import optax
 
 from openpi.training.physical_residual import PhysicalResidualHead, residual_training_loss
 from openpi.training.plugin_bank import _optimizer_from_bytes, _optimizer_to_bytes
+from openpi.training import sharding
 
 SUITES = ("spatial", "object", "goal", "long")
 FORMAT = "pi05-physical-residual-head-bank-v1"
@@ -71,6 +72,37 @@ def update_selected_head(
     new_states[suite] = optax.apply_updates(active_state, updates)
     new_optimizers[suite] = new_optimizer
     return new_states, new_optimizers, suite, {**metrics, "loss": loss}
+
+
+def make_sharded_head_step(base_graphdef, head_graphdef, tx, mesh):
+    """Compile one head-only step with explicit frozen base states as arguments."""
+    def step(frozen_base, frozen_zero_lora, head_state, optimizer_state,
+             observation, actions, task_ids, valid_horizon, rng, suite_update):
+        base_model = nnx.merge(base_graphdef, frozen_base, frozen_zero_lora)
+        def loss_fn(candidate_state):
+            head = nnx.merge(head_graphdef, candidate_state)
+            return residual_training_loss(base_model, head, rng, observation, actions, task_ids,
+                num_tasks=10, valid_horizon=valid_horizon, suite_update=suite_update)
+        (loss, metrics), grads = jax.value_and_grad(loss_fn, has_aux=True)(head_state)
+        updates, new_optimizer = tx.update(grads, optimizer_state, head_state)
+        return optax.apply_updates(head_state, updates), new_optimizer, {**metrics, "loss": loss}
+    compiled = jax.jit(step)
+    def run(*args):
+        with sharding.set_mesh(mesh): return compiled(*args)
+    return run
+
+
+def make_sharded_head_eval(base_graphdef, head_graphdef, mesh):
+    def evaluate(frozen_base, frozen_zero_lora, head_state, observation, actions,
+                 task_ids, valid_horizon, rng, suite_update):
+        base_model = nnx.merge(base_graphdef, frozen_base, frozen_zero_lora)
+        head = nnx.merge(head_graphdef, head_state)
+        return residual_training_loss(base_model, head, rng, observation, actions, task_ids,
+            num_tasks=10, valid_horizon=valid_horizon, train=False, suite_update=suite_update)
+    compiled = jax.jit(evaluate)
+    def run(*args):
+        with sharding.set_mesh(mesh): return compiled(*args)
+    return run
 
 
 def _sha256(data: bytes) -> str:
@@ -146,6 +178,13 @@ def load_head_bank(
             raise ValueError(f"checksum mismatch for {suite}")
         template = state_templates[suite]
         pure = serialization.from_bytes(template.to_pure_dict(), head_data)
+        template_leaves, template_tree = jax.tree.flatten(template.to_pure_dict())
+        restored_leaves, restored_tree = jax.tree.flatten(pure)
+        if (template_tree != restored_tree or len(template_leaves) != len(restored_leaves)
+                or any(tuple(expected.shape) != tuple(actual.shape)
+                       or expected.dtype != actual.dtype
+                       for expected, actual in zip(template_leaves, restored_leaves, strict=True))):
+            raise ValueError(f"head payload shape/dtype mismatch for {suite}")
         restored = copy.deepcopy(template); restored.replace_by_pure_dict(pure); states[suite] = restored
         optimizers[suite] = _optimizer_from_bytes(
             optimizer_templates[suite], opt_data, int(entry["optimizer_leaf_count"])
@@ -153,6 +192,11 @@ def load_head_bank(
         steps[suite] = int(entry["step"])
     if manifest.get("global_update_count") != sum(steps.values()):
         raise ValueError("global update count mismatch")
+    global_updates = sum(steps.values())
+    expected_steps = {suite: (global_updates + len(SUITES) - 1 - index) // len(SUITES)
+                      for index, suite in enumerate(SUITES)}
+    if steps != expected_steps:
+        raise ValueError("suite steps violate deterministic global round-robin")
     return states, optimizers, steps, manifest
 
 

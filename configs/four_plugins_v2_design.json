@@ -54,11 +54,29 @@
     "deterministic": true,
     "task_ids_retained_for_macro_loss": true
   },
+  "training_protocol": {
+    "task_name": "PI05-LIBERO-TEST-V2",
+    "global_updates": 40000,
+    "updates_per_head": 10000,
+    "round_robin_order": ["spatial", "object", "goal", "long"],
+    "seed": 42,
+    "holdout_demos_per_task": 2,
+    "fixed_holdout_frames_per_suite": 80,
+    "regular_bank_checkpoint_global_updates": [20000, 40000],
+    "smoke_checkpoint": {"global_step": 4, "directory": "checkpoints_smoke", "regular_checkpoint": false},
+    "holdout_every_global_updates": 2000,
+    "optimizer": {"name": "AdamW", "peak_lr": 0.0001, "end_lr": 0.00001,
+      "warmup_updates_per_head": 500, "cosine_decay_updates_per_head": 10000,
+      "beta1": 0.9, "beta2": 0.95,
+      "epsilon": 1e-8, "weight_decay": 0.0001, "gradient_clip": 1.0, "ema": false},
+    "base_dtype": "bfloat16",
+    "head_dtype": "float32"
+  },
   "integration": {
     "model_helper": "implemented_and_small_fixture_tested",
-    "train_step": "head-only reusable loss/gradient wrapper implemented; optimizer and runner integration pending",
-    "checkpoint_format": "four-head create-only bound checkpoint prototype implemented; full-base integration pending",
-    "inference_hook": "opt-in cached-prefix solver implemented; serving integration pending",
+    "train_step": "single-host 8-device entry wired with explicit frozen base state arguments; full 8-GPU compile unverified",
+    "checkpoint_format": "four-head create-only bound checkpoint and strict resume wired",
+    "inference_hook": "opt-in cached-prefix solver and restored-suite smoke implemented; production serving integration pending",
     "full_model_bitwise_parity": "not_measured_without_full_weights; exact legacy-formula parity covered by small CPU fixture",
     "rollout_success": "not_measured"
   }
