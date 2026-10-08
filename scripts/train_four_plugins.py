@@ -89,7 +89,7 @@ def numpy_collate(items: list[Any]) -> Any:
         return {k: numpy_collate([v[k] for v in items]) for k in x}
     if isinstance(x, np.ndarray):
         return np.stack(items)
-    if isinstance(x, (np.number, int, float, bool)):
+    if isinstance(x, (np.generic, int, float, bool)):
         return np.asarray(items)
     if isinstance(x, str):
         return list(items)
