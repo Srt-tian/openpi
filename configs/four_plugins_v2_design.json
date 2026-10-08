@@ -54,7 +54,9 @@
     "global_batch_size": 40,
     "deterministic": true,
     "task_ids_retained_for_macro_loss": true,
-    "training_chunks": "complete horizon-10 chunks only; terminal actions remain covered by the final valid start"
+    "training_chunks": "default all_observations: every frame is eligible and carries a prefix-valid horizon mask; optional full_chunks ablation admits complete horizon-10 chunks only",
+    "tail_padding": "dataset-native repeat-last action suffix; after integration paired_flow_inputs repeats the same sample's last-valid action and noise row over invalid training/holdout suffixes before x_tau construction (no new invalid-row draw), while head attention/pooling and target losses use the valid-prefix mask",
+    "tail_padding_scope": "training/holdout only from GT episode length; frozen base graph and parameters are unchanged; inference has no GT valid length and always uses normal full chunks"
   },
   "training_protocol": {
     "task_name": "PI05-LIBERO-TEST-V2",
@@ -63,7 +65,10 @@
     "round_robin_order": ["spatial", "object", "goal", "long"],
     "seed": 42,
     "holdout_demos_per_task": 2,
-    "fixed_holdout_complete_chunks_per_suite": 80,
+    "fixed_holdout_general_samples_per_suite": 80,
+    "fixed_holdout_tail_samples_per_suite": 40,
+    "fixed_holdout_tail_selection": "two holdout demonstrations per task, each at final and fifth-from-final frame (short episodes clamp with metadata)",
+    "fixed_holdout_tail_coverage": {"K1": 20, "K5": 20, "metrics": "one aggregate holdout_tail forward; no duplicated rows"},
     "holdout_rng": "fixed per suite across diagnostics",
     "regular_bank_checkpoint_global_updates": [20000, 40000],
     "smoke_checkpoint": {"global_step": 4, "directory": "checkpoints_smoke", "regular_checkpoint": false},

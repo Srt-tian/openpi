@@ -14,7 +14,7 @@ from openpi.training import physical_residual_bank as bank
 TASK_NAME="PI05-LIBERO-TEST-V2";TOTAL_UPDATES=40_000;UPDATES_PER_HEAD=10_000
 SAVE_EVERY=20_000;EVAL_EVERY=2_000;SMOKE_SAVE_STEP=4;BATCH_SIZE=40;SEED=42
 INITIAL_LR=1e-6;PEAK_LR=1e-4;END_LR=1e-5;WARMUP_PER_HEAD=500
-HORIZON=10;HOLDOUT_BATCH_SIZE=80
+HORIZON=10;HOLDOUT_BATCH_SIZE=80;TAIL_HOLDOUT_BATCH_SIZE=40
 REQUIRED_EVAL_METRICS=frozenset({"deployed_physical_fm","deployed_physical_gain",
     "base_physical_error","mean_surrogate_gate","optimal_gate_target"})
 
@@ -31,53 +31,79 @@ def parse_args(argv=None):
     p.add_argument("--preflight-only",action="store_true");p.add_argument("--resume",action="store_true");p.add_argument("--from-checkpoint",type=Path)
     p.add_argument("--base-params-sha256",required=True,help="approved aggregate content digest for all params files")
     p.add_argument("--seed",type=int,default=SEED);p.add_argument("--batch-size",type=int,default=BATCH_SIZE);p.add_argument("--num-workers",type=int,default=2)
+    p.add_argument("--chunk-sampling",choices=("all_observations","full_chunks"),default="all_observations")
     return p.parse_args(argv)
 
-def intervals_by_task(dataset):
+def intervals_by_task(dataset,chunk_sampling="all_observations"):
+    if chunk_sampling not in ("all_observations","full_chunks"):raise ValueError("unknown chunk sampling mode")
     result={};start=0
     for end,episode in zip(dataset._ends.tolist(),dataset.episodes,strict=True):
         length=int(end)-start
-        if length<HORIZON:raise ValueError(f"episode {episode.index} length {length} is shorter than horizon {HORIZON}")
-        result.setdefault(episode.task,[]).append((start,length-HORIZON+1));start=int(end)
+        if length<1:raise ValueError(f"episode {episode.index} is empty")
+        count=length if chunk_sampling=="all_observations" else max(0,length-HORIZON+1)
+        if count:result.setdefault(episode.task,[]).append((start,count))
+        start=int(end)
     if len(result)!=10:return (_ for _ in ()).throw(ValueError("suite dataset must contain exactly ten tasks"))
     return result
 
 class BalancedSampler:
-    def __init__(self,dataset,seed,start_step=0):self.intervals=intervals_by_task(dataset);self.seed=seed;self.step=start_step
+    def __init__(self,dataset,seed,start_step=0,chunk_sampling="all_observations"):
+        self.intervals=intervals_by_task(dataset,chunk_sampling);self.seed=seed;self.step=start_step
     def __iter__(self):
         while True:
             indices,_=balanced_task_batch(self.intervals,seed=self.seed,step=self.step);self.step+=1;yield indices.tolist()
     def __len__(self):return sys.maxsize
 
 class TaggedTransformedDataset:
-    def __init__(self,dataset,transform):self.dataset,self.transform=dataset,transform;self.tasks=sorted(intervals_by_task(dataset))
+    def __init__(self,dataset,transform,chunk_sampling="all_observations"):
+        self.dataset,self.transform,self.chunk_sampling=dataset,transform,chunk_sampling
+        self.tasks=sorted(intervals_by_task(dataset,chunk_sampling))
     def __len__(self):return len(self.dataset)
     def __getitem__(self,index):
         pos=int(np.searchsorted(self.dataset._ends,index,side="right"));episode=self.dataset.episodes[pos];task=episode.task
         start=0 if pos==0 else int(self.dataset._ends[pos-1]);frame=index-start
-        if frame+HORIZON>episode.length:raise IndexError("sample does not contain one complete action chunk")
+        valid=min(HORIZON,episode.length-frame)
+        if valid<1 or (self.chunk_sampling=="full_chunks" and valid<HORIZON):raise IndexError("sample is outside selected chunk mode")
         value=self.transform(dict(self.dataset[index]));value["v2_task_id"]=np.int32(self.tasks.index(task))
-        value["v2_valid_horizon"]=np.ones(HORIZON,dtype=np.float32);return value
+        value["v2_valid_horizon"]=np.concatenate((np.ones(valid),np.zeros(HORIZON-valid))).astype(np.float32);return value
 
 def fixed_holdout_indices(dataset,seed):
-    intervals=intervals_by_task(dataset)
+    intervals=intervals_by_task(dataset,"all_observations")
     batches=[balanced_task_batch(intervals,seed=seed,step=step)[0] for step in (0,1)]
     indices=np.concatenate(batches).tolist()
-    if len(indices)!=HOLDOUT_BATCH_SIZE:raise AssertionError("holdout must contain exactly 80 full chunks")
+    if len(indices)!=HOLDOUT_BATCH_SIZE:raise AssertionError("holdout must contain exactly 80 observations")
     return indices
+
+def fixed_tail_indices(dataset):
+    by_task={task:[] for task in range(10)};start=0;metadata=[]
+    for end,episode in zip(dataset._ends.tolist(),dataset.episodes,strict=True):
+        length=int(end)-start
+        if length<1:raise ValueError(f"episode {episode.index} is empty")
+        by_task[episode.task].append((start,length,episode.index));start=int(end)
+    indices=[]
+    for task in sorted(by_task):
+        episodes=by_task[task]
+        if len(episodes)!=2:raise ValueError("tail holdout requires exactly two demonstrations per task")
+        for start,length,episode_index in episodes:
+            offsets=(max(0,length-1),max(0,length-5));chosen=[start+x for x in offsets];indices.extend(chosen)
+            metadata.append({"task":task,"episode_index":episode_index,"length":length,
+              "requested_tail_k":[1,5],"frame_offsets":list(offsets),
+              "valid_counts":[1,min(5,length)],"clamped_or_repeated":len(set(offsets))<2 or length<5})
+    if len(indices)!=TAIL_HOLDOUT_BATCH_SIZE:raise AssertionError("tail holdout must contain exactly 40 observations")
+    return indices,metadata
 
 def fixed_eval_rng(seed,suite):
     import jax
     if suite not in bank.SUITES:raise ValueError("unknown suite")
     return jax.random.fold_in(jax.random.key(seed),20_000+bank.SUITES.index(suite))
 
-def make_loaders(args,datasets,transform,steps,train):
+def make_loaders(args,datasets,transform,steps,train,holdout_kind="general"):
     from torch.utils.data import DataLoader
     out={}
     for i,suite in enumerate(bank.SUITES):
-        raw=datasets[suite];ds=TaggedTransformedDataset(raw,transform)
-        sampler=(BalancedSampler(raw,args.seed+i,steps[suite]) if train
-                 else legacy.FixedIndexBatchSampler(fixed_holdout_indices(raw,args.seed+i)))
+        raw=datasets[suite];ds=TaggedTransformedDataset(raw,transform,args.chunk_sampling if train else "all_observations")
+        sampler=(BalancedSampler(raw,args.seed+i,steps[suite],args.chunk_sampling) if train else
+          legacy.FixedIndexBatchSampler(fixed_holdout_indices(raw,args.seed+i) if holdout_kind=="general" else fixed_tail_indices(raw)[0]))
         workers=args.num_workers if train else 0
         out[suite]=DataLoader(ds,batch_sampler=sampler,num_workers=workers,collate_fn=legacy.numpy_collate,
           multiprocessing_context="spawn" if workers else None,persistent_workers=bool(workers),
@@ -120,7 +146,9 @@ def main():
         for suite in bank.SUITES:
             _,actions,tasks,valid=batch_parts(next(iter(loaders[suite])));counts=np.bincount(tasks,minlength=10)
             report["batches"][suite]={"actions":list(actions.shape),"task_counts":counts.tolist(),"valid_rows":int(valid.sum())}
-            if actions.shape!=(40,10,32) or counts.tolist()!=[4]*10 or not np.all(valid==1):raise ValueError("balanced full-chunk batch contract failed")
+            prefix_ok=np.all(valid==np.maximum.accumulate(valid[:,::-1],axis=1)[:,::-1])
+            if actions.shape!=(40,10,32) or counts.tolist()!=[4]*10 or not prefix_ok or not np.all(valid.sum(1)>=1):
+                raise ValueError("balanced observation batch contract failed")
         print(json.dumps(report,sort_keys=True));return
     if os.environ.get("JAX_PROCESS_COUNT","1")!="1":raise RuntimeError("single-host process required")
     if "WANDB_API_KEY" not in os.environ:raise RuntimeError("WANDB_API_KEY must be injected")
@@ -138,6 +166,7 @@ def main():
     head_graphdef,heads=bank.initialize_head_bank(feature_dim,args.seed)
     tx=make_optimizer()
     opts=bank.initialize_optimizer_states(tx,heads);steps={s:0 for s in bank.SUITES}
+    tail_holdout_selection={suite:fixed_tail_indices(val[suite])[1] for suite in bank.SUITES}
     manifest={"schema":"pi05_residual_train.v1","task_name":TASK_NAME,"git_sha":git_sha,**commit_provenance,
       "seed":42,"total_updates":TOTAL_UPDATES,
       "updates_per_head":UPDATES_PER_HEAD,"batch_size":40,"holdout_every":EVAL_EVERY,"checkpoint_every":SAVE_EVERY,
@@ -151,8 +180,14 @@ def main():
         "groups":"equal xyz_mean/rotation_mean/gripper","gate_execution":"raw learned gate in all phases",
         "gate_bce_warmup":"auxiliary BCE disabled for first 500 per-suite updates only",
         "gate_target":"detached masked physical-group-weighted analytic optimal chunk blend strength"},
-      "sampling":{"train":"complete horizon-10 chunks only","holdout":"fixed 80 complete chunks per suite",
-        "terminal_actions_covered":True,"eval_rng":"fixed per suite across diagnostics"},
+      "sampling":{"mode":args.chunk_sampling,
+        "train":"all observation frames with valid-prefix masks" if args.chunk_sampling=="all_observations" else "complete horizon-10 chunks only",
+        "holdout_general":"fixed 80 all-observation samples per suite (two balanced 40 draws)",
+        "holdout_tail":"fixed 40 per suite: two holdout demonstrations per task, final and fifth-from-final frames",
+        "tail_holdout_coverage":{"K1":20,"K5":20,"aggregate_metric_only":True},
+        "terminal_observations_covered":args.chunk_sampling=="all_observations","eval_rng":"fixed per suite across diagnostics",
+        "padding_audit":"head attention/pooling and GT losses are prefix-masked; after integration, paired_flow_inputs repeats the last valid action and noise row across invalid training/holdout suffixes before constructing x_tau (no new invalid-row draw). Frozen base graph/parameters remain unchanged; inference has no GT valid length and uses normal full chunks",
+        "tail_holdout_selection":tail_holdout_selection},
       "gate_semantics":"calibrated physical-error blend strength; not success probability",
       "optimizer_restore":"raw payload leaf shape and dtype checked against template"};manifest["manifest_sha256"]=canonical_hash(manifest)
     manifest_path=args.output_dir/"run_manifest.json"
@@ -172,21 +207,29 @@ def main():
           for a,b in zip(left_leaves,right_leaves,strict=True))
     base_leaf_identity=tuple(id(leaf) for leaf in jax.tree.leaves(frozen))
     loaders=make_loaders(args,train,transform,steps,True);iters={s:iter(loaders[s]) for s in bank.SUITES}
-    val_loaders=make_loaders(args,val,transform,zero,False);val_batches={s:batch_parts(next(iter(val_loaders[s]))) for s in bank.SUITES}
+    val_loaders=make_loaders(args,val,transform,zero,False,"general")
+    tail_loaders=make_loaders(args,val,transform,zero,False,"tail")
+    val_batches={s:batch_parts(next(iter(val_loaders[s]))) for s in bank.SUITES}
+    tail_batches={s:batch_parts(next(iter(tail_loaders[s]))) for s in bank.SUITES}
     for name,(_,actions,tasks,valid) in val_batches.items():
-        if actions.shape!=(HOLDOUT_BATCH_SIZE,HORIZON,32) or valid.shape!=(HOLDOUT_BATCH_SIZE,HORIZON) or not np.all(valid==1):
-            raise ValueError(f"holdout batch is not 80 complete chunks: {name}")
+        if actions.shape!=(HOLDOUT_BATCH_SIZE,HORIZON,32) or valid.shape!=(HOLDOUT_BATCH_SIZE,HORIZON) or not np.all(valid.sum(1)>=1):
+            raise ValueError(f"general holdout batch is not 80 valid observations: {name}")
         if np.bincount(tasks,minlength=10).tolist()!=[8]*10:raise ValueError(f"holdout task balance failed: {name}")
+    for name,(_,actions,tasks,valid) in tail_batches.items():
+        if actions.shape!=(TAIL_HOLDOUT_BATCH_SIZE,HORIZON,32) or valid.shape!=(TAIL_HOLDOUT_BATCH_SIZE,HORIZON):
+            raise ValueError(f"tail holdout batch is not 40 observations: {name}")
+        if np.bincount(tasks,minlength=10).tolist()!=[4]*10 or not np.all(valid.sum(1)>=1):
+            raise ValueError(f"tail holdout task/mask contract failed: {name}")
     step_fn=bank.make_sharded_head_step(base_graphdef,head_graphdef,tx,mesh)
     eval_fn=bank.make_sharded_head_eval(base_graphdef,head_graphdef,mesh)
     run=wandb.init(project="physicalrsi",name=TASK_NAME,config=manifest);stop=False
     def request_stop(*_):
         nonlocal stop;stop=True
     signal.signal(signal.SIGTERM,request_stop);signal.signal(signal.SIGINT,request_stop)
-    def evaluate_holdout(step):
+    def evaluate_holdout(step,label,batches):
         logs={}
         for name in bank.SUITES:
-            vo,va,vt,vv=legacy.put_batch_on_mesh(val_batches[name],mesh)
+            vo,va,vt,vv=legacy.put_batch_on_mesh(batches[name],mesh)
             value,metric=eval_fn(frozen,heads[name],vo,va,vt,vv,
               fixed_eval_rng(args.seed,name),steps[name])
             values={"loss":value,**metric}
@@ -194,7 +237,7 @@ def main():
             missing=REQUIRED_EVAL_METRICS-set(host)
             if missing:raise ValueError(f"holdout metrics missing deployed gate diagnostics: {name}: {sorted(missing)}")
             if not all(np.isfinite(item) for item in host.values()):raise FloatingPointError(f"non-finite holdout metric: {name}: {host}")
-            logs.update({f"holdout/{name}/{key}":item for key,item in host.items()})
+            logs.update({f"{label}/{name}/{key}":item for key,item in host.items()})
         run.log(logs,step=step);return logs
     global_step=sum(steps.values())
     while global_step<TOTAL_UPDATES:
@@ -209,7 +252,8 @@ def main():
         steps[suite]+=1;global_step+=1;run.log({f"train/{suite}/{k}":v for k,v in host_metrics.items()},step=global_step)
         if global_step%EVAL_EVERY==0:
             # Holdout is diagnostic only; no optimizer update and no success claim.
-            evaluate_holdout(global_step)
+            evaluate_holdout(global_step,"holdout_general",val_batches)
+            evaluate_holdout(global_step,"holdout_tail",tail_batches)
         if global_step==SMOKE_SAVE_STEP or global_step%SAVE_EVERY==0 or stop:
             checkpoint_group="checkpoints_smoke" if global_step==SMOKE_SAVE_STEP else "checkpoints"
             checkpoint_path=args.output_dir/checkpoint_group/f"step_{global_step:08d}"
@@ -226,9 +270,11 @@ def main():
                 print(json.dumps({"startup_smoke":"passed","global_step":global_step,
                   "base_invariant":"immutable non-donated state leaf identity unchanged",
                   "checkpoint":str(checkpoint_path)},sort_keys=True),flush=True)
-                smoke_eval=evaluate_holdout(global_step)
-                print(json.dumps({"startup_holdout":"passed","examples_per_suite":HOLDOUT_BATCH_SIZE,
-                  "finite_metrics":len(smoke_eval)},sort_keys=True),flush=True)
+                smoke_general=evaluate_holdout(global_step,"holdout_general",val_batches)
+                smoke_tail=evaluate_holdout(global_step,"holdout_tail",tail_batches)
+                print(json.dumps({"startup_holdout":"passed","general_examples_per_suite":HOLDOUT_BATCH_SIZE,
+                  "tail_examples_per_suite":TAIL_HOLDOUT_BATCH_SIZE,
+                  "finite_metrics":len(smoke_general)+len(smoke_tail)},sort_keys=True),flush=True)
         if stop:break
     run.finish()
 
