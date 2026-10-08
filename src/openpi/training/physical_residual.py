@@ -30,18 +30,22 @@ class _TemporalBlock(nnx.Module):
         self.ffn_in = nnx.Linear(width, ffn_dim, rngs=rngs)
         self.ffn_out = nnx.Linear(ffn_dim, width, rngs=rngs)
 
-    def __call__(self, x):
+    def __call__(self, x, valid_horizon=None):
         batch, horizon = x.shape[:2]
         qkv = self.qkv(self.pre_attn(x)).reshape(batch, horizon, 3, self.heads, self.width // self.heads)
         q, k, v = (qkv[:, :, index] for index in range(3))
-        weights = jax.nn.softmax(jnp.einsum("bthd,bshd->bhts", q, k) / math.sqrt(q.shape[-1]), axis=-1)
+        logits = jnp.einsum("bthd,bshd->bhts", q, k) / math.sqrt(q.shape[-1])
+        if valid_horizon is not None:
+            valid_horizon = jnp.asarray(valid_horizon, dtype=jnp.bool_)
+            logits = jnp.where(valid_horizon[:, None, None, :], logits, jnp.finfo(logits.dtype).min)
+        weights = jax.nn.softmax(logits, axis=-1)
         attended = jnp.einsum("bhts,bshd->bthd", weights, v).reshape(batch, horizon, self.width)
         x = x + self.attn_out(attended)
         return x + self.ffn_out(jax.nn.gelu(self.ffn_in(self.pre_ffn(x))))
 
 
 class PhysicalResidualHead(nnx.Module):
-    """Two-block temporal physical residual with one chunk-level surrogate gate."""
+    """Two-block temporal physical residual with one calibrated chunk blend."""
 
     def __init__(self, feature_dim: int, state_dim: int = 8, width: int = 256, *,
                  horizon: int = 10, heads: int = 4, ffn_dim: int = 1024,
@@ -67,7 +71,7 @@ class PhysicalResidualHead(nnx.Module):
             bias_init=jax.nn.initializers.constant(math.log(0.25 / 0.75)), rngs=rngs,
         )
 
-    def __call__(self, base_action_hidden, normalized_state, base_velocity, flow_time):
+    def __call__(self, base_action_hidden, normalized_state, base_velocity, flow_time, valid_horizon=None):
         hidden = jax.lax.stop_gradient(jnp.asarray(base_action_hidden))
         state = jnp.asarray(normalized_state)
         velocity = jax.lax.stop_gradient(jnp.asarray(base_velocity))
@@ -83,13 +87,18 @@ class PhysicalResidualHead(nnx.Module):
             time = jnp.broadcast_to(time[:, None], (batch, horizon))
         if time.shape != (batch, horizon):
             raise ValueError("flow_time must have shape [B] or [B,T]")
+        mask = jnp.ones((batch, horizon), dtype=jnp.bool_) if valid_horizon is None else jnp.asarray(valid_horizon, dtype=jnp.bool_)
+        if mask.shape != (batch, horizon) or not isinstance(mask, jax.core.Tracer) and not np.all(np.asarray(mask).any(axis=1)):
+            raise ValueError("valid_horizon must have shape [B,T] with at least one valid step per example")
         state = jnp.broadcast_to(state[:, None, : self.state_dim], (batch, horizon, self.state_dim))
         time_features = jnp.stack((time, jnp.sin(jnp.pi * time), jnp.cos(jnp.pi * time)), axis=-1)
         features = jnp.concatenate((hidden, state, velocity[..., :PHYSICAL_DIM], time_features), axis=-1)
         trunk = self.in_proj(features) + self.position_embedding[None]
-        trunk = self.final_norm(self.block1(self.block0(trunk)))
-        residual7 = self.residual_bound * jnp.tanh(self.residual_out(trunk))
-        chunk_gate = jax.nn.sigmoid(self.gate_out(jnp.mean(trunk, axis=1)))[:, None, :]
+        trunk = self.block0(trunk, mask)
+        trunk = self.final_norm(self.block1(trunk, mask))
+        residual7 = self.residual_bound * jnp.tanh(self.residual_out(trunk)) * mask[..., None]
+        pooled = jnp.sum(trunk * mask[..., None], axis=1) / jnp.maximum(jnp.sum(mask, axis=1, keepdims=True), 1)
+        chunk_gate = jax.nn.sigmoid(self.gate_out(pooled))[:, None, :]
         gate = jnp.broadcast_to(chunk_gate, (batch, horizon, 1))
         residual32 = jnp.pad(residual7, ((0, 0), (0, 0), (0, PADDED_ACTION_DIM - PHYSICAL_DIM)))
         corrected = velocity + gate * residual32
@@ -135,7 +144,7 @@ def physical_residual_loss(
     valid_horizon=None, relative_margin: float = 0.05, correction_weight: float = 1e-3,
     gate_weight: float = 0.1, suite_update: int | jax.Array = 0, gate_warmup_updates: int = 500,
 ):
-    """Physical-7 task-macro FM plus paired teacher regret and surrogate gate loss."""
+    """Physical-7 task-macro FM, paired regret, and calibrated blend loss."""
     base = jax.lax.stop_gradient(jnp.asarray(base_velocity))[..., :PHYSICAL_DIM]
     target = jax.lax.stop_gradient(jnp.asarray(target_velocity))[..., :PHYSICAL_DIM]
     residual, gate = jnp.asarray(residual7), jnp.asarray(gate)
@@ -153,27 +162,35 @@ def physical_residual_loss(
         return (jnp.mean(squared[..., :3], axis=-1) + jnp.mean(squared[..., 3:6], axis=-1)
                 + squared[..., 6]) / 3
     warmup = jnp.asarray(suite_update) < gate_warmup_updates
-    training_gate = jnp.where(warmup, jnp.ones_like(gate),
-                              jnp.maximum(jax.lax.stop_gradient(gate), .25))
     e0 = reduce_horizon(grouped_error(base))
-    corrected = base + training_gate * residual
+    corrected = base + gate * residual
     ephi = reduce_horizon(grouped_error(corrected))
-    ungated_error = reduce_horizon(grouped_error(base + residual))
     correction = reduce_horizon(jnp.mean(jnp.square(residual), axis=-1))
     valid_examples = mask.sum(axis=1) > 0
     fm = _task_macro(ephi, task_ids, valid_examples, num_tasks)
     regret = _task_macro(jax.nn.relu(ephi - e0 + relative_margin * e0), task_ids, valid_examples, num_tasks)
     correction_norm = _task_macro(correction, task_ids, valid_examples, num_tasks)
-    # This detached teacher-relative label is a surrogate, not rollout-success supervision.
-    label = jax.lax.stop_gradient((ungated_error < e0).astype(base.dtype))
+    # Analytic physical-error-minimizing chunk blend strength, not success supervision.
+    weights7 = jnp.asarray([1/9, 1/9, 1/9, 1/9, 1/9, 1/9, 1/3], dtype=base.dtype)
+    error = base - target
+    weighted_mask = mask[..., None] * weights7
+    numerator = -jnp.sum(weighted_mask * error * residual, axis=(1, 2))
+    denominator = jnp.sum(weighted_mask * jnp.square(residual), axis=(1, 2))
+    optimal_gate = jnp.where(denominator > 1e-8,
+                             jnp.clip(numerator / (denominator + 1e-8), 0, 1), 0)
+    label = jax.lax.stop_gradient(optimal_gate)
     gate_probability = jnp.clip(reduce_horizon(gate[..., 0]), 1e-6, 1 - 1e-6)
     gate_bce = _task_macro(-(label * jnp.log(gate_probability) + (1-label) * jnp.log(1-gate_probability)),
                            task_ids, valid_examples, num_tasks)
     effective_gate_weight = jnp.where(warmup, 0.0, gate_weight)
     total = fm + regret + correction_weight * correction_norm + effective_gate_weight * gate_bce
-    return total, {"loss": total, "physical_fm": fm, "paired_relative_regret": regret,
+    deployed_gain = _task_macro(e0 - ephi, task_ids, valid_examples, num_tasks)
+    optimal_gate_metric = _task_macro(label, task_ids, valid_examples, num_tasks)
+    return total, {"loss": total, "physical_fm": fm, "deployed_physical_fm": fm,
+                   "deployed_physical_gain": deployed_gain, "paired_relative_regret": regret,
                    "correction_norm": correction_norm, "surrogate_gate_bce": gate_bce,
                    "base_physical_error": _task_macro(e0, task_ids, valid_examples, num_tasks),
+                   "optimal_gate_target": optimal_gate_metric,
                    "gate_warmup": warmup, "effective_gate_weight": effective_gate_weight}
 
 
@@ -200,7 +217,7 @@ def residual_training_loss(
     )
     base_velocity = jax.lax.stop_gradient(base_velocity)
     base_hidden = jax.lax.stop_gradient(base_hidden)
-    outputs = head(base_hidden, observation.state, base_velocity, flow["flow_time"])
+    outputs = head(base_hidden, observation.state, base_velocity, flow["flow_time"], valid_horizon)
     loss, metrics = physical_residual_loss(
         base_velocity=base_velocity, residual7=outputs["residual7"],
         gate=outputs["surrogate_gain_gate"], target_velocity=flow["target_velocity"],
@@ -265,12 +282,15 @@ def sample_actions_with_physical_residual(
             jax.lax.stop_gradient(base_velocity), time_batch,
         )
         if gate_override == 0:
-            velocity = base_velocity
+            correction = jnp.zeros_like(outputs["residual32"])
         elif gate_override is not None:
-            velocity = base_velocity + jnp.asarray(gate_override) * outputs["residual32"]
+            correction = jnp.asarray(gate_override) * outputs["residual32"]
         else:
-            velocity = outputs["corrected_velocity"]
-        return x_t + dt * velocity, time + dt
+            correction = outputs["surrogate_gain_gate"] * outputs["residual32"]
+        # Preserve the cached native solver's arithmetic/dtype path exactly when
+        # the correction is zero; add the residual as a separate delta.
+        native_next = x_t + dt * base_velocity
+        return native_next + dt * correction, time + dt
 
     def cond(carry):
         return carry[1] >= -dt / 2

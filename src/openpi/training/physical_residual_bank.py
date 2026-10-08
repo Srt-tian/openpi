@@ -137,6 +137,25 @@ def _write(path: Path, data: bytes):
         stream.write(data); stream.flush(); os.fsync(stream.fileno())
 
 
+def _restore_optimizer_checked(template, data: bytes, leaf_count: int, suite: str):
+    expected_leaves, expected_tree = jax.tree.flatten(template)
+    raw = serialization.msgpack_restore(data)
+    if (not isinstance(raw, dict) or set(raw) != {str(index) for index in range(leaf_count)}
+            or len(expected_leaves) != leaf_count
+            or any(tuple(expected.shape) != tuple(raw[str(index)].shape)
+                   or expected.dtype != raw[str(index)].dtype
+                   for index, expected in enumerate(expected_leaves))):
+        raise ValueError(f"optimizer payload shape/dtype mismatch for {suite}")
+    restored = _optimizer_from_bytes(template, data, leaf_count)
+    actual_leaves, actual_tree = jax.tree.flatten(restored)
+    if (expected_tree != actual_tree or len(expected_leaves) != len(actual_leaves)
+            or any(tuple(expected.shape) != tuple(actual.shape)
+                   or expected.dtype != actual.dtype
+                   for expected, actual in zip(expected_leaves, actual_leaves, strict=True))):
+        raise ValueError(f"optimizer payload shape/dtype mismatch for {suite}")
+    return restored
+
+
 def save_head_bank(
     path, states, optimizer_states, steps, *, base_checkpoint_path: str,
     norm_stats_sha256: str, base_manifest_sha256: str, head_config: Mapping[str, int],
@@ -212,9 +231,8 @@ def load_head_bank(
                        for expected, actual in zip(template_leaves, restored_leaves, strict=True))):
             raise ValueError(f"head payload shape/dtype mismatch for {suite}")
         restored = copy.deepcopy(template); restored.replace_by_pure_dict(pure); states[suite] = restored
-        optimizers[suite] = _optimizer_from_bytes(
-            optimizer_templates[suite], opt_data, int(entry["optimizer_leaf_count"])
-        )
+        optimizers[suite] = _restore_optimizer_checked(
+            optimizer_templates[suite], opt_data, int(entry["optimizer_leaf_count"]), suite)
         steps[suite] = int(entry["step"])
     if manifest.get("global_update_count") != sum(steps.values()):
         raise ValueError("global update count mismatch")

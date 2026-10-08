@@ -4,8 +4,10 @@ import os
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
 
 import copy
+import hashlib
+import json
 import flax.struct
-from flax import nnx
+from flax import nnx, serialization
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -142,3 +144,22 @@ def test_checkpoint_rejects_missing_or_extra_bank(tmp_path,bad_key):
     with pytest.raises(ValueError,match="exactly the four suites"):
       bank.save_head_bank(tmp_path/f"bad_{bad_key}",states,opts,steps,
         base_checkpoint_path="/base",norm_stats_sha256="n",base_manifest_sha256="m",head_config={"feature_dim":4})
+
+
+@pytest.mark.parametrize("tamper", ["shape","dtype"])
+def test_restore_rejects_optimizer_shape_or_dtype_even_with_updated_checksum(tmp_path,tamper):
+    _,states=bank.initialize_head_bank(4,11,width=8,horizon=2,ffn_dim=16);tx=optax.adam(1e-3)
+    opts=bank.initialize_optimizer_states(tx,states);config={"feature_dim":4}
+    path=bank.save_head_bank(tmp_path/f"bad_opt_{tamper}",states,opts,{suite:0 for suite in bank.SUITES},
+      base_checkpoint_path="/base",norm_stats_sha256="n",base_manifest_sha256="m",head_config=config)
+    manifest_path=path/"manifest.json";manifest=json.loads(manifest_path.read_text());entry=manifest["banks"]["spatial"]
+    leaves,_=jax.tree.flatten(opts["spatial"]);payload={str(i):leaf for i,leaf in enumerate(leaves)}
+    index=0 if tamper=="shape" else next(i for i,value in enumerate(leaves)
+                                         if np.issubdtype(np.asarray(value).dtype,np.floating))
+    key=str(index);leaf=np.asarray(payload[key])
+    payload[key]=(np.reshape(leaf,(1,)) if tamper=="shape" else leaf.astype(np.int32))
+    data=serialization.to_bytes(payload);(path/entry["optimizer_file"]).write_bytes(data)
+    entry["optimizer_sha256"]=hashlib.sha256(data).hexdigest();manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError,match="optimizer payload shape/dtype"):
+      bank.load_head_bank(path,states,opts,expected_base_checkpoint_path="/base",
+        expected_norm_stats_sha256="n",expected_base_manifest_sha256="m",expected_head_config=config)

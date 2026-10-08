@@ -139,14 +139,63 @@ def test_opt_in_solver_zero_head_and_gate_off_match_native(monkeypatch):
     np.testing.assert_array_equal(out["residual32"][...,7:], 0)
 
 
-def test_gate_warmup_blocks_gate_gradient_then_bce_trains_gate():
-    base=jnp.zeros((2,2,32));target=jnp.ones((2,2,32));residual=jnp.zeros((2,2,7));tasks=jnp.array([0,1])
+def test_bfloat16_base_zero_residual_preserves_cached_native_update(monkeypatch):
+    monkeypatch.setattr(model_api, "preprocess_observation", lambda key, obs, train: obs)
+    base=_TinyFrozenBase();original=base.action_out_proj
+    base.action_out_proj=lambda hidden: original(hidden).astype(jnp.bfloat16)
+    head=PhysicalResidualHead(4,width=8,horizon=2,ffn_dim=16,rngs=nnx.Rngs(15))
+    obs=_Observation(jnp.ones((2,32)));noise=jnp.arange(128,dtype=jnp.float32).reshape(2,2,32)/100
+    native=base.sample_actions(jax.random.key(0),obs,num_steps=3,noise=noise)
+    zero=sample_actions_with_physical_residual(base,head,jax.random.key(0),obs,num_steps=3,noise=noise)
+    off=sample_actions_with_physical_residual(base,head,jax.random.key(0),obs,num_steps=3,noise=noise,gate_override=0.0)
+    np.testing.assert_array_equal(zero,native)
+    np.testing.assert_array_equal(off,native)
+
+
+def test_gate_warmup_disables_only_auxiliary_bce_not_fm_gate_gradient():
+    base=jnp.zeros((2,2,32));target=jnp.ones((2,2,32));residual=jnp.full((2,2,7),-.1);tasks=jnp.array([0,1])
     def loss(gate,suite_update):
         return physical_residual_loss(base_velocity=base,residual7=residual,gate=gate,
             target_velocity=target,task_ids=tasks,num_tasks=2,suite_update=suite_update)[0]
     gate=jnp.full((2,2,1),.25)
-    np.testing.assert_array_equal(jax.grad(loss)(gate,0),0)
+    assert float(jnp.linalg.norm(jax.grad(loss)(gate,0)))>0
     assert float(jnp.linalg.norm(jax.grad(loss)(gate,500)))>0
+
+
+def test_raw_gate_training_matches_deployment_and_conflict_repro_is_removed():
+    base=jnp.zeros((1,10,32)).at[...,:7].set(.25);target=jnp.zeros((1,10,32))
+    residual=jnp.full((1,10,7),-.99);tasks=jnp.array([0]);mask=jnp.ones((1,10))
+    def loss(g):
+        return physical_residual_loss(base_velocity=base,residual7=residual,
+            gate=jnp.full((1,10,1),g),target_velocity=target,task_ids=tasks,
+            num_tasks=1,valid_horizon=mask,suite_update=500)[0]
+    _,metrics=physical_residual_loss(base_velocity=base,residual7=residual,
+        gate=jnp.full((1,10,1),.01),target_velocity=target,task_ids=tasks,
+        num_tasks=1,valid_horizon=mask,suite_update=500)
+    deployed=jnp.square(.25+.01*-.99)
+    np.testing.assert_allclose(metrics["physical_fm"],deployed,rtol=1e-6)
+    np.testing.assert_allclose(metrics["deployed_physical_fm"],deployed,rtol=1e-6)
+    np.testing.assert_allclose(metrics["optimal_gate_target"],.25/.99,rtol=1e-6)
+    assert float(jax.grad(loss)(jnp.array(.01)))<0
+
+
+def test_zero_delta_has_zero_calibrated_blend_target_and_no_warmup_bce():
+    base=jnp.ones((1,2,32));target=jnp.zeros((1,2,32));residual=jnp.zeros((1,2,7))
+    _,warm=physical_residual_loss(base_velocity=base,residual7=residual,
+        gate=jnp.full((1,2,1),.25),target_velocity=target,task_ids=jnp.array([0]),num_tasks=1,suite_update=499)
+    _,active=physical_residual_loss(base_velocity=base,residual7=residual,
+        gate=jnp.full((1,2,1),.25),target_velocity=target,task_ids=jnp.array([0]),num_tasks=1,suite_update=500)
+    assert float(warm["effective_gate_weight"])==0
+    assert float(active["optimal_gate_target"])==0
+
+
+def test_masked_attention_pooling_and_invalid_residual_zero():
+    head=PhysicalResidualHead(5,width=8,horizon=3,ffn_dim=16,rngs=nnx.Rngs(12))
+    hidden,state,velocity,time=inputs();mask=jnp.array([[1,1,0],[1,0,0]],dtype=jnp.float32)
+    out=head(hidden,state,velocity,time,mask)
+    np.testing.assert_array_equal(np.asarray(out["residual7"])[np.asarray(mask)==0],0)
+    with pytest.raises(ValueError,match="at least one valid"):
+        head(hidden,state,velocity,time,jnp.zeros((2,3)))
 
 
 def test_grouped_physical_loss_equal_weights_xyz_rotation_grip():
