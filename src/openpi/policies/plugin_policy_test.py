@@ -120,6 +120,49 @@ class PluginPolicyTest(unittest.TestCase):
                 service.infer(payload)
         inner.infer.assert_not_called()
 
+    def test_original_base_factory_validates_bundle_without_lora_initialization(self):
+        manifest = {
+            "global_update_count": 4000,
+            "metadata_extra": {"git_sha": "commit"},
+            "base": {"checkpoint_path": "/original/base/params"},
+            "banks": {},
+        }
+        original = _FakePolicy(0.0)
+        with tempfile.TemporaryDirectory() as directory:
+            root = plugin_policy.Path(directory)
+            base = root / "base"
+            plugin = root / "plugins"
+            (base / "params").mkdir(parents=True)
+            norm = base / "assets/physical-intelligence/libero/norm_stats.json"
+            norm.parent.mkdir(parents=True)
+            norm.write_text("{}")
+            plugin.mkdir()
+            (plugin / "manifest.json").write_text("{}")
+            with mock.patch.object(
+                plugin_policy.plugin_bank, "verify_adapter_bank", return_value=manifest
+            ) as verify, mock.patch.object(
+                plugin_policy.plugin_bank,
+                "initialize_bank",
+                side_effect=AssertionError("native base must not initialize the LoRA graph"),
+            ), mock.patch.object(
+                plugin_policy, "_checkpoint_inventory_hash", return_value="base-hash"
+            ), mock.patch.object(
+                plugin_policy, "_sha256_file", return_value="a" * 64
+            ), mock.patch.object(
+                plugin_policy, "_create_original_trained_policy", return_value=original
+            ) as create:
+                result = plugin_policy.create_original_base_policy(
+                    base, plugin, allow_verified_base_relocation=True
+                )
+        self.assertEqual(result.metadata["policy_id"], "base")
+        self.assertEqual(result.metadata["base_graph"], "original_pi05_libero")
+        self.assertIsNone(result.metadata["adapter_sha256"])
+        self.assertTrue(result.metadata["verified_base_relocation"])
+        self.assertEqual(verify.call_args.kwargs["expected_base_checkpoint_path"], None)
+        self.assertEqual(verify.call_args.kwargs["expected_norm_stats_hash"], "a" * 64)
+        self.assertEqual(verify.call_args.kwargs["expected_base_manifest_hash"], "base-hash")
+        create.assert_called_once_with(base.resolve(), default_prompt=None, sample_kwargs=None)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -127,6 +127,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--suite", action="append", choices=SUITES, dest="suites")
     parser.add_argument("--arm", choices=("base", "plugin"))
     parser.add_argument("--expected-checkpoint-sha256")
+    parser.add_argument("--expected-base-graph", default="original_pi05_libero")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--init-count", type=argparse_init_count, default=DEFAULT_INIT_COUNT)
     parser.add_argument("--timeout-seconds", type=float, default=30.0)
@@ -151,14 +152,23 @@ def validate_execute_args(args: argparse.Namespace, plan: list[dict[str, Any]]) 
     parsed = urlsplit(args.service_uri)
     if parsed.scheme not in ("ws", "wss") or parsed.username is not None or parsed.password is not None:
         raise ValueError("service URI must be ws(s) without embedded credentials")
+    if not isinstance(args.expected_base_graph, str) or not args.expected_base_graph:
+        raise ValueError("--expected-base-graph must be a non-empty string")
     return next(iter(ids)), checkpoint
 
 
-def validated_metadata_subset(metadata: Any, policy_id: str, checkpoint_sha256: str) -> dict[str, Any]:
+def validated_metadata_subset(
+    metadata: Any,
+    policy_id: str,
+    checkpoint_sha256: str,
+    expected_base_graph: str,
+) -> dict[str, Any]:
+    required_graph = expected_base_graph if policy_id == "base" else "pi05_lora"
     expected = {
         "policy_id": policy_id,
         "checkpoint_sha256": checkpoint_sha256,
         "policy_seed_protocol": SEED_PROTOCOL,
+        "base_graph": required_graph,
     }
     if not isinstance(metadata, dict) or any(metadata.get(key) != value for key, value in expected.items()):
         raise ValueError("service metadata does not match fixed policy/checkpoint/seed protocol")
@@ -189,7 +199,9 @@ def validate_service_metadata(args: argparse.Namespace, policy_id: str, checkpoi
         additional_headers=headers,
     ) as socket:
         metadata = msgpack_numpy.unpackb(socket.recv(timeout=args.timeout_seconds))
-    return validated_metadata_subset(metadata, policy_id, checkpoint_sha256)
+    return validated_metadata_subset(
+        metadata, policy_id, checkpoint_sha256, args.expected_base_graph
+    )
 
 
 class EpisodeIdentityTransport:
@@ -209,6 +221,7 @@ class EpisodeIdentityTransport:
             self.inner.metadata,
             self.expected_metadata["policy_id"],
             self.expected_metadata["checkpoint_sha256"],
+            self.expected_metadata["base_graph"],
         )
         if subset != self.expected_metadata:
             raise ValueError("episode service metadata differs from preflight connection")

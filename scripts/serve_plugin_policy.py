@@ -25,14 +25,22 @@ class Args:
 
 
 def create_policy(args: Args):
-    policy = plugin_policy.create_plugin_policy(
-        args.base_checkpoint,
-        args.plugin_checkpoint,
-        args.policy_id,
-        default_prompt=args.default_prompt,
-        num_fsdp_devices=args.num_fsdp_devices,
-        allow_verified_base_relocation=args.allow_verified_base_relocation,
-    )
+    if args.policy_id == "base":
+        policy = plugin_policy.create_original_base_policy(
+            args.base_checkpoint,
+            args.plugin_checkpoint,
+            default_prompt=args.default_prompt,
+            allow_verified_base_relocation=args.allow_verified_base_relocation,
+        )
+    else:
+        policy = plugin_policy.create_plugin_policy(
+            args.base_checkpoint,
+            args.plugin_checkpoint,
+            args.policy_id,
+            default_prompt=args.default_prompt,
+            num_fsdp_devices=args.num_fsdp_devices,
+            allow_verified_base_relocation=args.allow_verified_base_relocation,
+        )
     return plugin_policy.FixedPolicyService(policy, args.policy_id)
 
 

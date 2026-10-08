@@ -66,6 +66,19 @@ class FixedPolicyService(policy_api.BasePolicy):
         return self._policy.infer(payload, noise=noise)
 
 
+class _PolicyWithMetadata(policy_api.BasePolicy):
+    def __init__(self, policy: policy_api.BasePolicy, metadata: dict[str, Any]):
+        self._policy = policy
+        self._metadata = metadata
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        return self._metadata
+
+    def infer(self, obs: dict, *, noise: np.ndarray | None = None) -> dict:
+        return self._policy.infer(obs, noise=noise)
+
+
 def measure_same_noise_base_alignment(
     zero_b_policy: policy_api.BasePolicy,
     original_base_policy: policy_api.BasePolicy,
@@ -115,6 +128,47 @@ def _require_policy_id(policy_id: str) -> str:
     if policy_id not in POLICY_IDS:
         raise ValueError(f"policy_id must be one of {POLICY_IDS}; automatic routing is not available")
     return policy_id
+
+
+def _bundle_metadata(
+    policy_id: str,
+    plugin_checkpoint: Path,
+    params_path: Path,
+    manifest: dict[str, Any],
+    *,
+    allow_verified_base_relocation: bool,
+    base_graph: str,
+) -> dict[str, Any]:
+    return {
+        "policy_id": policy_id,
+        "policy_bundle": str(plugin_checkpoint),
+        "plugin_global_update_count": manifest["global_update_count"],
+        "plugin_git_sha": manifest.get("metadata_extra", {}).get("git_sha"),
+        "checkpoint_sha256": _sha256_file(plugin_checkpoint / "manifest.json"),
+        "adapter_sha256": (
+            None if policy_id == "base" else manifest["banks"][policy_id]["adapter_sha256"]
+        ),
+        "original_base_checkpoint_path": manifest["base"]["checkpoint_path"],
+        "runtime_base_checkpoint_path": str(params_path),
+        "verified_base_relocation": bool(
+            allow_verified_base_relocation
+            and manifest["base"]["checkpoint_path"] != str(params_path)
+        ),
+        "base_graph": base_graph,
+        "routing": "explicit_fixed_policy_id",
+        "call_head_loaded": False,
+        "suite_semantics": "LIBERO suite adapter; not an atomic robot skill",
+        "base_semantics": (
+            "original PI0.5 LIBERO graph"
+            if base_graph == "original_pi05_libero"
+            else (
+                "zero-B adapter in the plugin LoRA graph; diagnostic only because same-noise "
+                "numeric alignment with the original base graph failed"
+                if base_graph == "zero_b_lora_graph"
+                else "frozen PI0.5 LIBERO base with the explicitly selected action-expert LoRA adapter"
+            )
+        ),
+    }
 
 
 def _select_adapter(
@@ -198,29 +252,14 @@ def create_plugin_policy(
     config = training_config.get_config("pi05_libero")
     data_config = config.data.create(config.assets_dirs, model_config)
     norm_stats = normalize.load(norm_path.parent)
-    metadata = {
-        "policy_id": policy_id,
-        "policy_bundle": str(plugin_checkpoint),
-        "plugin_global_update_count": manifest["global_update_count"],
-        "plugin_git_sha": manifest.get("metadata_extra", {}).get("git_sha"),
-        "checkpoint_sha256": _sha256_file(plugin_checkpoint / "manifest.json"),
-        "adapter_sha256": (
-            None if policy_id == "base" else manifest["banks"][policy_id]["adapter_sha256"]
-        ),
-        "original_base_checkpoint_path": manifest["base"]["checkpoint_path"],
-        "runtime_base_checkpoint_path": str(params_path),
-        "verified_base_relocation": bool(
-            allow_verified_base_relocation
-            and manifest["base"]["checkpoint_path"] != str(params_path)
-        ),
-        "routing": "explicit_fixed_policy_id",
-        "call_head_loaded": False,
-        "suite_semantics": "LIBERO suite adapter; not an atomic robot skill",
-        "base_semantics": (
-            "zero-B adapter in the plugin LoRA graph; not labeled official baseline until same-noise "
-            "numeric alignment with the original base graph is measured"
-        ),
-    }
+    metadata = _bundle_metadata(
+        policy_id,
+        plugin_checkpoint,
+        params_path,
+        manifest,
+        allow_verified_base_relocation=allow_verified_base_relocation,
+        base_graph="zero_b_lora_graph" if policy_id == "base" else "pi05_lora",
+    )
     return policy_api.Policy(
         model,
         transforms=[
@@ -236,4 +275,64 @@ def create_plugin_policy(
         ],
         sample_kwargs=sample_kwargs,
         metadata=metadata,
+    )
+
+
+def create_original_base_policy(
+    base_checkpoint: str | Path,
+    plugin_checkpoint: str | Path,
+    *,
+    default_prompt: str | None = None,
+    sample_kwargs: dict[str, Any] | None = None,
+    allow_verified_base_relocation: bool = False,
+) -> policy_api.BasePolicy:
+    """Load the original non-LoRA PI0.5 LIBERO graph as the base arm.
+
+    The plugin bundle is still fully adapter-hash verified and content-bound to
+    the runtime base and norm stats.  Only optimizer payloads remain irrelevant.
+    """
+    base_checkpoint = Path(base_checkpoint).expanduser().resolve()
+    plugin_checkpoint = Path(plugin_checkpoint).expanduser().resolve()
+    params_path = base_checkpoint / "params"
+    norm_path = base_checkpoint / "assets/physical-intelligence/libero/norm_stats.json"
+    for required in (params_path, norm_path, plugin_checkpoint / "manifest.json"):
+        if not required.exists():
+            raise FileNotFoundError(required)
+    norm_hash = _sha256_file(norm_path)
+    base_hash = _checkpoint_inventory_hash(base_checkpoint)
+    manifest = plugin_bank.verify_adapter_bank(
+        plugin_checkpoint,
+        expected_base_checkpoint_path=None if allow_verified_base_relocation else str(params_path),
+        expected_norm_stats_hash=norm_hash,
+        expected_base_manifest_hash=base_hash,
+    )
+    original = _create_original_trained_policy(
+        base_checkpoint, default_prompt=default_prompt, sample_kwargs=sample_kwargs
+    )
+    metadata = _bundle_metadata(
+        "base",
+        plugin_checkpoint,
+        params_path,
+        manifest,
+        allow_verified_base_relocation=allow_verified_base_relocation,
+        base_graph="original_pi05_libero",
+    )
+    return _PolicyWithMetadata(original, metadata)
+
+
+def _create_original_trained_policy(
+    base_checkpoint: Path,
+    *,
+    default_prompt: str | None,
+    sample_kwargs: dict[str, Any] | None,
+) -> policy_api.Policy:
+    # Keep this import off the suite-adapter service path: policy_config imports
+    # the standard checkpoint/data stack, which suite inference does not need.
+    from openpi.policies import policy_config
+
+    return policy_config.create_trained_policy(
+        training_config.get_config("pi05_libero"),
+        base_checkpoint,
+        default_prompt=default_prompt,
+        sample_kwargs=sample_kwargs,
     )

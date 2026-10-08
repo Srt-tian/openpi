@@ -111,6 +111,7 @@ class EvalPi05PluginsTest(unittest.TestCase):
             "policy_id": "goal",
             "checkpoint_sha256": "a" * 64,
             "policy_seed_protocol": MODULE.SEED_PROTOCOL,
+            "base_graph": "pi05_lora",
             "adapter_sha256": "b" * 64,
         }
 
@@ -139,15 +140,37 @@ class EvalPi05PluginsTest(unittest.TestCase):
             "policy_id": "base",
             "checkpoint_sha256": "a" * 64,
             "policy_seed_protocol": MODULE.SEED_PROTOCOL,
+            "base_graph": "original_pi05_libero",
             "adapter_sha256": None,
         }
-        self.assertEqual(MODULE.validated_metadata_subset(metadata, "base", "a" * 64), metadata)
+        self.assertEqual(
+            MODULE.validated_metadata_subset(metadata, "base", "a" * 64, "original_pi05_libero"),
+            metadata,
+        )
         with self.assertRaisesRegex(ValueError, "must attest"):
-            MODULE.validated_metadata_subset(dict(metadata, adapter_sha256="b" * 64), "base", "a" * 64)
+            MODULE.validated_metadata_subset(
+                dict(metadata, adapter_sha256="b" * 64), "base", "a" * 64, "original_pi05_libero"
+            )
         missing = dict(metadata)
         del missing["adapter_sha256"]
         with self.assertRaisesRegex(ValueError, "must attest"):
-            MODULE.validated_metadata_subset(missing, "base", "a" * 64)
+            MODULE.validated_metadata_subset(missing, "base", "a" * 64, "original_pi05_libero")
+
+    def test_metadata_rejects_wrong_base_or_plugin_graph(self):
+        base = {
+            "policy_id": "base", "checkpoint_sha256": "a" * 64,
+            "policy_seed_protocol": MODULE.SEED_PROTOCOL,
+            "base_graph": "zero_b_lora_graph", "adapter_sha256": None,
+        }
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            MODULE.validated_metadata_subset(base, "base", "a" * 64, "original_pi05_libero")
+        plugin = {
+            "policy_id": "goal", "checkpoint_sha256": "a" * 64,
+            "policy_seed_protocol": MODULE.SEED_PROTOCOL,
+            "base_graph": "original_pi05_libero", "adapter_sha256": "b" * 64,
+        }
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            MODULE.validated_metadata_subset(plugin, "goal", "a" * 64, "original_pi05_libero")
 
     def test_init_count_ten_has_dynamic_paired_coverage(self):
         plan = MODULE.execution_plan(7, init_count=10)
