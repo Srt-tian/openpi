@@ -32,6 +32,7 @@ def parse_args(argv=None):
     p.add_argument("--base-params-sha256",required=True,help="approved aggregate content digest for all params files")
     p.add_argument("--seed",type=int,default=SEED);p.add_argument("--batch-size",type=int,default=BATCH_SIZE);p.add_argument("--num-workers",type=int,default=2)
     p.add_argument("--chunk-sampling",choices=("all_observations","full_chunks"),default="all_observations")
+    p.add_argument("--padding-supervision",choices=("official_repeat_last","valid_prefix"),default="official_repeat_last")
     return p.parse_args(argv)
 
 def intervals_by_task(dataset,chunk_sampling="all_observations"):
@@ -55,8 +56,10 @@ class BalancedSampler:
     def __len__(self):return sys.maxsize
 
 class TaggedTransformedDataset:
-    def __init__(self,dataset,transform,chunk_sampling="all_observations"):
+    def __init__(self,dataset,transform,chunk_sampling="all_observations",padding_supervision="official_repeat_last"):
+        if padding_supervision not in ("official_repeat_last","valid_prefix"):raise ValueError("unknown padding supervision")
         self.dataset,self.transform,self.chunk_sampling=dataset,transform,chunk_sampling
+        self.padding_supervision=padding_supervision
         self.tasks=sorted(intervals_by_task(dataset,chunk_sampling))
     def __len__(self):return len(self.dataset)
     def __getitem__(self,index):
@@ -65,7 +68,11 @@ class TaggedTransformedDataset:
         valid=min(HORIZON,episode.length-frame)
         if valid<1 or (self.chunk_sampling=="full_chunks" and valid<HORIZON):raise IndexError("sample is outside selected chunk mode")
         value=self.transform(dict(self.dataset[index]));value["v2_task_id"]=np.int32(self.tasks.index(task))
-        value["v2_valid_horizon"]=np.concatenate((np.ones(valid),np.zeros(HORIZON-valid))).astype(np.float32);return value
+        prefix=np.concatenate((np.ones(valid),np.zeros(HORIZON-valid))).astype(np.float32)
+        value["v2_episode_valid_horizon"]=prefix
+        value["v2_valid_horizon"]=(np.ones(HORIZON,dtype=np.float32)
+          if self.padding_supervision=="official_repeat_last" else prefix)
+        return value
 
 def fixed_holdout_indices(dataset,seed):
     intervals=intervals_by_task(dataset,"all_observations")
@@ -75,7 +82,9 @@ def fixed_holdout_indices(dataset,seed):
     return indices
 
 def fixed_tail_indices(dataset):
-    by_task={task:[] for task in range(10)};start=0;metadata=[]
+    task_ids=sorted({episode.task for episode in dataset.episodes})
+    if len(task_ids)!=10:raise ValueError("tail holdout requires exactly ten suite tasks")
+    by_task={task:[] for task in task_ids};start=0;metadata=[]
     for end,episode in zip(dataset._ends.tolist(),dataset.episodes,strict=True):
         length=int(end)-start
         if length<1:raise ValueError(f"episode {episode.index} is empty")
@@ -101,7 +110,8 @@ def make_loaders(args,datasets,transform,steps,train,holdout_kind="general"):
     from torch.utils.data import DataLoader
     out={}
     for i,suite in enumerate(bank.SUITES):
-        raw=datasets[suite];ds=TaggedTransformedDataset(raw,transform,args.chunk_sampling if train else "all_observations")
+        raw=datasets[suite];ds=TaggedTransformedDataset(raw,transform,args.chunk_sampling if train else "all_observations",
+          args.padding_supervision)
         sampler=(BalancedSampler(raw,args.seed+i,steps[suite],args.chunk_sampling) if train else
           legacy.FixedIndexBatchSampler(fixed_holdout_indices(raw,args.seed+i) if holdout_kind=="general" else fixed_tail_indices(raw)[0]))
         workers=args.num_workers if train else 0
@@ -112,7 +122,8 @@ def make_loaders(args,datasets,transform,steps,train,holdout_kind="general"):
 
 def batch_parts(batch):
     batch=dict(batch);tasks=batch.pop("v2_task_id");valid=batch.pop("v2_valid_horizon")
-    obs,actions=legacy.observation_and_actions(batch);return obs,actions,tasks,valid
+    episode_valid=batch.pop("v2_episode_valid_horizon")
+    obs,actions=legacy.observation_and_actions(batch);return obs,actions,tasks,valid,episode_valid
 
 def canonical_hash(value):return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(",",":"),default=str).encode()).hexdigest()
 
@@ -144,8 +155,9 @@ def main():
         loaders=make_loaders(args,train,transform,zero,True)
         report={"task_name":TASK_NAME,"git_sha":git_sha,**commit_provenance,"dataset_manifest":dataset_manifest,"batches":{}}
         for suite in bank.SUITES:
-            _,actions,tasks,valid=batch_parts(next(iter(loaders[suite])));counts=np.bincount(tasks,minlength=10)
-            report["batches"][suite]={"actions":list(actions.shape),"task_counts":counts.tolist(),"valid_rows":int(valid.sum())}
+            _,actions,tasks,valid,episode_valid=batch_parts(next(iter(loaders[suite])));counts=np.bincount(tasks,minlength=10)
+            report["batches"][suite]={"actions":list(actions.shape),"task_counts":counts.tolist(),
+              "supervised_rows":int(valid.sum()),"episode_valid_rows":int(episode_valid.sum())}
             prefix_ok=np.all(valid==np.maximum.accumulate(valid[:,::-1],axis=1)[:,::-1])
             if actions.shape!=(40,10,32) or counts.tolist()!=[4]*10 or not prefix_ok or not np.all(valid.sum(1)>=1):
                 raise ValueError("balanced observation batch contract failed")
@@ -180,13 +192,14 @@ def main():
         "groups":"equal xyz_mean/rotation_mean/gripper","gate_execution":"raw learned gate in all phases",
         "gate_bce_warmup":"auxiliary BCE disabled for first 500 per-suite updates only",
         "gate_target":"detached masked physical-group-weighted analytic optimal chunk blend strength"},
-      "sampling":{"mode":args.chunk_sampling,
-        "train":"all observation frames with valid-prefix masks" if args.chunk_sampling=="all_observations" else "complete horizon-10 chunks only",
+      "sampling":{"mode":args.chunk_sampling,"padding_supervision":args.padding_supervision,
+        "train":"all observation frames" if args.chunk_sampling=="all_observations" else "complete horizon-10 chunks only",
         "holdout_general":"fixed 80 all-observation samples per suite (two balanced 40 draws)",
         "holdout_tail":"fixed 40 per suite: two holdout demonstrations per task, final and fifth-from-final frames",
         "tail_holdout_coverage":{"K1":20,"K5":20,"aggregate_metric_only":True},
         "terminal_observations_covered":args.chunk_sampling=="all_observations","eval_rng":"fixed per suite across diagnostics",
-        "padding_audit":"head attention/pooling and GT losses are prefix-masked; after integration, paired_flow_inputs repeats the last valid action and noise row across invalid training/holdout suffixes before constructing x_tau (no new invalid-row draw). Frozen base graph/parameters remain unchanged; inference has no GT valid length and uses normal full chunks",
+        "padding_audit":"official_repeat_last (default) matches the public clipped-index convention by supervising all H=10 repeated-last targets; valid_prefix is an optional single-run ablation, not an additional scheduled run. Episode K is always metadata. Noise remains IID and native. Evaluation/deployment head features receive no GT remaining-length mask; eval GT masks affect only loss/soft labels. Frozen-base padding-context invariance is not claimed",
+        "scope":"tail padding convention only; the physical-7 residual objective differs from the public native 32-dimension mean loss",
         "tail_holdout_selection":tail_holdout_selection},
       "gate_semantics":"calibrated physical-error blend strength; not success probability",
       "optimizer_restore":"raw payload leaf shape and dtype checked against template"};manifest["manifest_sha256"]=canonical_hash(manifest)
@@ -211,11 +224,11 @@ def main():
     tail_loaders=make_loaders(args,val,transform,zero,False,"tail")
     val_batches={s:batch_parts(next(iter(val_loaders[s]))) for s in bank.SUITES}
     tail_batches={s:batch_parts(next(iter(tail_loaders[s]))) for s in bank.SUITES}
-    for name,(_,actions,tasks,valid) in val_batches.items():
+    for name,(_,actions,tasks,valid,episode_valid) in val_batches.items():
         if actions.shape!=(HOLDOUT_BATCH_SIZE,HORIZON,32) or valid.shape!=(HOLDOUT_BATCH_SIZE,HORIZON) or not np.all(valid.sum(1)>=1):
             raise ValueError(f"general holdout batch is not 80 valid observations: {name}")
         if np.bincount(tasks,minlength=10).tolist()!=[8]*10:raise ValueError(f"holdout task balance failed: {name}")
-    for name,(_,actions,tasks,valid) in tail_batches.items():
+    for name,(_,actions,tasks,valid,episode_valid) in tail_batches.items():
         if actions.shape!=(TAIL_HOLDOUT_BATCH_SIZE,HORIZON,32) or valid.shape!=(TAIL_HOLDOUT_BATCH_SIZE,HORIZON):
             raise ValueError(f"tail holdout batch is not 40 observations: {name}")
         if np.bincount(tasks,minlength=10).tolist()!=[4]*10 or not np.all(valid.sum(1)>=1):
@@ -229,7 +242,8 @@ def main():
     def evaluate_holdout(step,label,batches):
         logs={}
         for name in bank.SUITES:
-            vo,va,vt,vv=legacy.put_batch_on_mesh(batches[name],mesh)
+            vo,va,vt,vv,_=batches[name]
+            vo,va,vt,vv=legacy.put_batch_on_mesh((vo,va,vt,vv),mesh)
             value,metric=eval_fn(frozen,heads[name],vo,va,vt,vv,
               fixed_eval_rng(args.seed,name),steps[name])
             values={"loss":value,**metric}
@@ -241,7 +255,7 @@ def main():
         run.log(logs,step=step);return logs
     global_step=sum(steps.values())
     while global_step<TOTAL_UPDATES:
-        suite=bank.SUITES[global_step%4];obs,actions,tasks,valid=batch_parts(next(iters[suite]));obs,actions,tasks,valid=legacy.put_batch_on_mesh((obs,actions,tasks,valid),mesh)
+        suite=bank.SUITES[global_step%4];obs,actions,tasks,valid,_=batch_parts(next(iters[suite]));obs,actions,tasks,valid=legacy.put_batch_on_mesh((obs,actions,tasks,valid),mesh)
         rng=jax.random.fold_in(jax.random.key(args.seed),global_step)
         prior_head=heads[suite]
         candidate_head,candidate_opt,metrics=step_fn(frozen,prior_head,opts[suite],obs,actions,tasks,valid,rng,steps[suite])

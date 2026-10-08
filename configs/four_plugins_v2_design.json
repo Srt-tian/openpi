@@ -54,9 +54,13 @@
     "global_batch_size": 40,
     "deterministic": true,
     "task_ids_retained_for_macro_loss": true,
-    "training_chunks": "default all_observations: every frame is eligible and carries a prefix-valid horizon mask; optional full_chunks ablation admits complete horizon-10 chunks only",
-    "tail_padding": "dataset-native repeat-last action suffix; after integration paired_flow_inputs repeats the same sample's last-valid action and noise row over invalid training/holdout suffixes before x_tau construction (no new invalid-row draw), while head attention/pooling and target losses use the valid-prefix mask",
-    "tail_padding_scope": "training/holdout only from GT episode length; frozen base graph and parameters are unchanged; inference has no GT valid length and always uses normal full chunks"
+    "training_chunks": "default all_observations: every frame is eligible; optional full_chunks ablation admits complete horizon-10 chunks only",
+    "padding_supervision_default": "official_repeat_last: supervise all H=10 clipped-index repeat-last targets, matching the public OpenPI/LeRobot tail convention",
+    "padding_supervision_optional_ablation": "valid_prefix: mask target loss/soft labels after the episode-valid prefix; not automatically scheduled as a second run",
+    "tail_metadata": "episode-valid K is retained separately for K1/K5 coverage and never used as deployment routing",
+    "tail_padding_scope": "tail convention alignment only: this residual objective covers physical7 rather than the public native 32-dimension temporal mean loss",
+    "noise_and_eval": "paired-flow noise remains IID/native; evaluation head features and deployment receive no GT remaining-length mask, while an optional eval GT mask affects loss/soft labels only",
+    "padding_invariance": "not claimed for the frozen base or the complete residual pipeline"
   },
   "training_protocol": {
     "task_name": "PI05-LIBERO-TEST-V2",
