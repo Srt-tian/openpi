@@ -22,6 +22,7 @@ import pi05_harness_backend as backend
 import pi05_closed_dwell_lift as closed_dwell_lift
 import pi05_instruction_lease as instruction_lease
 import pi05_response_probe as response_probe
+import pi05_transport_release_semantic_resume as semantic_resume
 
 
 SUITES = ("libero_spatial", "libero_object", "libero_goal", "libero_10")
@@ -277,7 +278,14 @@ def load_task_control_snapshot(registry_path: Path | str) -> dict[str, Any]:
                 and raw.get("enabled") is True
                 and ("veto_native_upward_intent" not in raw
                      or type(raw["veto_native_upward_intent"]) is bool))
-            if not response_valid and not lease_valid and not lift_valid:
+            semantic_valid = (isinstance(raw, dict)
+                and set(raw) == {"kind", "enabled", "resume_instruction"}
+                and raw.get("kind") == semantic_resume.KIND
+                and raw.get("enabled") is True
+                and isinstance(raw.get("resume_instruction"), str)
+                and bool(raw["resume_instruction"].strip())
+                and len(raw["resume_instruction"]) <= 512)
+            if not response_valid and not lease_valid and not lift_valid and not semantic_valid:
                 raise ValueError("invalid task-level pi05_control schema")
             control = dict(raw)
         digest = _canonical_sha256(config)
@@ -590,6 +598,13 @@ def _run_new_loop(
             delegate, veto_native_upward_intent=control.get("veto_native_upward_intent", False)
         )
         environment_factory = response_probe.response_probe_environment_factory(
+            base_environment_factory, skill
+        )
+    elif control.get("enabled") and control.get("kind") == semantic_resume.KIND:
+        skill = semantic_resume.Pi05TransportReleaseSemanticResumeSkill(
+            delegate, resume_instruction=control["resume_instruction"]
+        )
+        environment_factory = semantic_resume.environment_factory(
             base_environment_factory, skill
         )
     elif control == {"kind": "response_probe_v1", "enabled": False}:

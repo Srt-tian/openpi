@@ -1,0 +1,19 @@
+{
+  "batches": [
+    {
+      "cases": "configs/pi05_transport_release_semantic_resume/cases_worker0.json",
+      "mode": "harness",
+      "name": "worker0_control",
+      "registry": "configs/pi05_harness/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    },
+    {
+      "cases": "configs/pi05_transport_release_semantic_resume/cases_worker0.json",
+      "mode": "harness",
+      "name": "worker0_semantic_resume",
+      "registry": "configs/pi05_transport_release_semantic_resume/registry.json",
+      "routes": "configs/pi05_harness/routes_base.json"
+    }
+  ],
+  "schema": "pi05_harness_worker.v1"
+}

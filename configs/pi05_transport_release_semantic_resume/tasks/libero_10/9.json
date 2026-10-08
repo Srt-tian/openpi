@@ -1,0 +1,35 @@
+{
+  "evidence": {
+    "phase": "phase1dev400",
+    "routing_scope": "task_only_no_init_image_or_state",
+    "status": "unvalidated"
+  },
+  "harness": {
+    "name": "pi05-base",
+    "remember": [],
+    "schema": 1,
+    "stages": [
+      {
+        "instruction": "put the yellow and white mug in the microwave and close it",
+        "max_steps": 520,
+        "on_timeout": "abort",
+        "skill": "pi05",
+        "until": null
+      }
+    ]
+  },
+  "parent_sha256": "a643d05a86b247b94141536c1e6bd2e2cb90a85ad76439a1201999f663ec63a3",
+  "pi05_control": {
+    "enabled": true,
+    "kind": "transport_release_semantic_resume_v1",
+    "resume_instruction": "put both the yellow mug and the white mug in the microwave; put the remaining mug inside before closing the microwave door"
+  },
+  "proposal": {
+    "candidate": "long",
+    "rationale": "Developer-set per-task candidate; not an oracle or per-init rule."
+  },
+  "reasoning": "Explicit unchanged PI0.5 single-stage baseline at the official task cap.",
+  "schema": 1,
+  "status": "unvalidated",
+  "task": "libero_10/9"
+}

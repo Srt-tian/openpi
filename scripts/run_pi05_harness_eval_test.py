@@ -174,6 +174,22 @@ class CliValidationTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "pi05_control"):
                     cli.load_task_control_snapshot(registry)
 
+    def test_transport_release_semantic_resume_is_exact_and_enabled_only(self):
+        valid = {"kind": "transport_release_semantic_resume_v1", "enabled": True,
+                 "resume_instruction": "full conjunction; do the remaining part"}
+        with tempfile.TemporaryDirectory() as directory:
+            registry = self.write_control_registry(directory, {"pi05_control": valid})
+            self.assertEqual(cli.load_task_control_snapshot(registry)["controls"]
+                             ["libero_goal/3"], valid)
+        for control in (
+            {**valid, "enabled": False}, {**valid, "resume_instruction": " "},
+            {**valid, "unknown": 1}, {"kind": valid["kind"], "enabled": True},
+        ):
+            with self.subTest(control=control), tempfile.TemporaryDirectory() as directory:
+                registry = self.write_control_registry(directory, {"pi05_control": control})
+                with self.assertRaisesRegex(ValueError, "pi05_control"):
+                    cli.load_task_control_snapshot(registry)
+
     def test_task_config_digest_mismatch_is_closed(self):
         with tempfile.TemporaryDirectory() as directory:
             registry = self.write_control_registry(directory, {
