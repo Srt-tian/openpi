@@ -67,12 +67,17 @@ outcome oracle are needed for this initial supervised model.
 ## Remaining work before a training submission
 
 1. Verify raw-to-normalized history conversion and training/runtime convention.
-2. The early-time feature extractor and loopback training-only service are
-   implemented with CPU fixtures. Durable sharded cache storage with
-   base/norm/source/split hashes is still pending; deduplicate per-episode
-   history rather than store it per query. No real GPU cache exists yet.
-3. Implement the deterministic task-balanced sequence trainer and safe
-   checkpoints; fix optimizer, steps, validation and checkpoint choice.
+2. The early-time feature extractor, private service, durable sharded cache
+   writer/reader are implemented with CPU fixtures. Real-data preflight found
+   19640 train/1117 validation queries, each with four early times, requiring
+   3400826880 bytes of hidden-feature payload plus velocities/targets/history.
+   Histories are deduplicated by episode and sliced strictly before the query
+   frame. No real GPU cache exists yet.
+3. The trainer is implemented: AdamW LR1e-4, WD1e-4, clip1, batch16, seed42,
+   3000 updates; six safe checkpoints every500 updates; fixed final3000, no
+   resume/best selection. Task quotas rotate to avoid favoring the first six
+   tasks. Fixed32 held-out flow losses are diagnostics, not success rates.
+   Validate the actual GPU trainer/image and add the owned-service task launcher.
 4. Integrate the adapter into the real ten-step sampler with explicit
    episode reset/executed-action updates and disabled/native GPU parity.
 5. Validate dependencies in the pinned image, measure a small authorized GPU

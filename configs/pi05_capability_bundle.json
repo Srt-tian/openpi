@@ -13,7 +13,7 @@
   "service": {"port": 18671, "startup_timeout_seconds": 240},
   "modules": [
     {"id": "demo_support_cfn", "status": "ready", "trainer": "demo_support_cfn_v1", "reason": "implemented trainer; real feature cache and fit still pending"},
-    {"id": "execution_memory_pae", "status": "blocked", "trainer": null, "reason": "experimental execution-memory flow model and loss implemented; native early-time cache, trainer and real sampler integration pending; not an ActMem reproduction"},
+    {"id": "execution_memory_pae", "status": "blocked", "trainer": "execution_memory_flow_v1", "reason": "model, sharded cache and trainer implemented; single-task launch integration, actual GPU validation/cache and runtime sampler integration pending; not an ActMem reproduction"},
     {"id": "action_alignment_verifier", "status": "blocked", "trainer": null, "reason": "LIBERO candidate alignment data and adapted verifier trainer not implemented"},
     {"id": "intervention_gain_gate", "status": "blocked", "trainer": null, "reason": "paired intervention labels, calibration split and gain-head trainer not implemented"},
     {"id": "value_guidance", "status": "blocked", "trainer": null, "reason": "reward/transition dataset and critic/RL trainer not implemented"}
