@@ -19,7 +19,7 @@ execution, not the unexecuted suffix of a predicted action chunk. Current
 state is allowed as the last observed post-state. No future observation,
 success, task index, initial-state index or policy seed enters the network.
 
-The functional GRU scan retains gradients through all supplied valid past
+The batched packed-sequence GRU retains gradients through all supplied valid past
 steps, ignores suffix padding, and permits empty history. Maximum history is
 520 transitions. Training queries beyond that window must retain the reader's
 omitted-past/burn-in metadata; do not label them full-prefix recurrent training.
@@ -67,8 +67,10 @@ outcome oracle are needed for this initial supervised model.
 ## Remaining work before a training submission
 
 1. Verify raw-to-normalized history conversion and training/runtime convention.
-2. Implement the new early-time cache with base/norm/source/split hashes;
-   deduplicate per-episode history rather than store it per query.
+2. The early-time feature extractor and loopback training-only service are
+   implemented with CPU fixtures. Durable sharded cache storage with
+   base/norm/source/split hashes is still pending; deduplicate per-episode
+   history rather than store it per query. No real GPU cache exists yet.
 3. Implement the deterministic task-balanced sequence trainer and safe
    checkpoints; fix optimizer, steps, validation and checkpoint choice.
 4. Integrate the adapter into the real ten-step sampler with explicit

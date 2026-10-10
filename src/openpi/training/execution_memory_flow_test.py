@@ -6,9 +6,9 @@ from openpi.training.execution_memory_flow import (
 
 def test_batch_history_matches_streamed_execution_and_empty_history():
     encoder=ExecutionMemoryEncoder(16)
-    history=torch.randn(2,5,23);mask=torch.tensor([[1,1,1,1,1],[1,1,1,0,0]],dtype=torch.bool)
+    history=torch.randn(4,5,23);mask=torch.tensor([[0,0,0,0,0],[1,1,1,0,0],[1,1,1,1,1],[1,0,0,0,0]],dtype=torch.bool)
     batched=encoder(history,mask)
-    for i,length in enumerate([5,3]):
+    for i,length in enumerate([0,3,5,1]):
         h=torch.zeros(1,16)
         for step in range(length):h=encoder.advance(history[i:i+1,step],h)
         torch.testing.assert_close(h[0],batched[i])
@@ -53,7 +53,7 @@ def test_training_has_history_gradients_but_no_backbone_or_target_gradients():
     assert torch.isfinite(loss) and hidden.grad is None and base.grad is None and target.grad is None
     assert history.grad is not None and torch.isfinite(history.grad).all()
     assert history.grad.abs().sum()>0
-    assert adapter.memory.cell.weight_hh.grad.abs().sum()>0
+    assert adapter.memory.gru.weight_hh_l0.grad.abs().sum()>0
     assert set(metrics)=={'flow_mse','base_mse','paired_regret','correction_mse'}
 
 

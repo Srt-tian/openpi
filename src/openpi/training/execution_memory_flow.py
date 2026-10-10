@@ -28,22 +28,29 @@ class ExecutionMemoryEncoder(nn.Module):
     def __init__(self, hidden=128):
         super().__init__()
         self.hidden = hidden
-        self.cell = nn.GRUCell(23, hidden)
+        self.gru = nn.GRU(23, hidden, batch_first=True)
 
     def forward(self, history, mask):
         validate_history(history, mask)
-        h = history.new_zeros((len(history), self.hidden))
-        for step in range(history.shape[1]):
-            proposal = self.cell(history[:, step], h)
-            h = torch.where(mask[:, step, None], proposal, h)
-        return h
+        value = history.to(self.gru.weight_ih_l0)
+        h = value.new_zeros((len(history), self.hidden))
+        lengths = mask.to(value.device).sum(dim=1)
+        active = torch.nonzero(lengths > 0, as_tuple=False).flatten()
+        if not len(active):
+            return h
+        packed = nn.utils.rnn.pack_padded_sequence(value[active], lengths[active].cpu(),
+                                                   batch_first=True, enforce_sorted=False)
+        _, result = self.gru(packed)
+        return h.index_copy(0, active, result[0])
 
     def advance(self, transition, h):
         if transition.ndim != 2 or transition.shape[1] != 23 or h.shape != (len(transition), self.hidden):
             raise ValueError('one observed transition23 per recurrent state required')
         if not torch.isfinite(transition).all() or not torch.isfinite(h).all():
             raise ValueError('recurrent inputs must be finite')
-        return self.cell(transition, h)
+        _, result = self.gru(transition.to(self.gru.weight_ih_l0)[:, None],
+                             h.to(self.gru.weight_ih_l0)[None])
+        return result[0]
 
 
 class MemoryFlowAdapter(nn.Module):
