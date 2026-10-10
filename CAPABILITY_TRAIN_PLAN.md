@@ -1,0 +1,10 @@
+# PI0.5 capability training plan (not authorized for execution)
+
+This is a technical integration plan, not a submitted training job. The frozen PI0.5 base and its checkpoint digest remain explicit inputs; every learned module must initialize to a tested zero/bypass path.
+
+1. Reuse the read-only LeRobot-v3 root `/pfs/user/data/libero/libero` and the already resolved split recorded in `/pfs/user/data/physicalrsi_joint_plugins/PI05-LIBERO-TEST-V2-retry1/run_manifest.json` (`seed=42`, `holdout_per_task=2`, horizon 10). Both paths were verified present; the existing loader must revalidate files and manifest membership before use. Build chronological sequences containing current RGB/wrist/state, full prompt, and past actually executed actions/states. Never include init identifiers, policy seeds, success labels as routing inputs, future observations, failure-eval trajectories, or privileged simulator state.
+2. Train each capability in isolation against a frozen backbone, recording its own checkpoint digest and exact observable schema. History modules require multi-step sequences rather than shuffled single frames. Candidate verifiers train on predetermined candidate sets with candidate 0 preserving the native seed; labels may use offline supervision during training but runtime scoring receives current/past observables only.
+3. Verify zero/bypass numerical parity, bounded query/invocation counts, deterministic seed lists, memory reset/handoff behavior, and single action-owner composition in CPU fixtures. Then perform a separately authorized full-runtime smoke before any benchmark.
+4. Publish only manifests that pass checkpoint/base identity and availability gates. Keep ActMem/RTS/TACO/CoVer/MostlyHarmless/RL2/RTC unavailable until actual implementations and checkpoints exist.
+
+Pending before any submission: authoritative dataset path/manifest digest capture through the existing loader, concrete optimizer and schedule approval, runtime compilation evidence, resource/queue selection, and fresh user confirmation.

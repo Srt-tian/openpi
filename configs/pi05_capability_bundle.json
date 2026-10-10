@@ -1,0 +1,24 @@
+{
+  "schema": "pi05-capability-bundle.v1",
+  "image_reference": "magiclab-cn-shanghai.cr.volces.com/magiclab/openpi_server:latest",
+  "image_status": "previous_task_reference_only_not_digest_pinned_or_current_dependency_validated",
+  "dataset": "/pfs/user/data/libero/libero",
+  "base": "/pfs/user/data/physicalrsi_pi05/pi05_libero",
+  "base_sha256": "b2556a934f90eb282d3008507a62829140e3206cda5859bcd4494c34d2296656",
+  "norm_sha256": "b3a44bb2810436fb62917decaea58bd4d9110255df527dea21e8fd40c960bd84",
+  "split_manifest": "/pfs/user/data/physicalrsi_joint_plugins/PI05-LIBERO-TEST-V2-retry1/run_manifest.json",
+  "split_manifest_sha256": "549b15a84cd1e9dc0c01b111f143beed6d1e1f48f70f47425fb6d6b06bbba6c7",
+  "output": "/pfs/user/data/pi05_capability_bundle_20261010",
+  "wall_time_limit_seconds": 7200,
+  "service": {"port": 18671, "startup_timeout_seconds": 240},
+  "modules": [
+    {"id": "demo_support_cfn", "status": "ready", "trainer": "demo_support_cfn_v1", "reason": "implemented trainer; real feature cache and fit still pending"},
+    {"id": "execution_memory_pae", "status": "blocked", "trainer": null, "reason": "causal history reader exists; memory/PAE model, losses and sequence trainer not implemented"},
+    {"id": "action_alignment_verifier", "status": "blocked", "trainer": null, "reason": "LIBERO candidate alignment data and adapted verifier trainer not implemented"},
+    {"id": "intervention_gain_gate", "status": "blocked", "trainer": null, "reason": "paired intervention labels, calibration split and gain-head trainer not implemented"},
+    {"id": "value_guidance", "status": "blocked", "trainer": null, "reason": "reward/transition dataset and critic/RL trainer not implemented"}
+  ],
+  "non_training_candidates": {"RTS": "retrieval library construction, not a mandatory neural fit", "RTC": "inference/execution protocol, no standalone training"},
+  "training_protocol": {"suite": "libero_10", "updates": 2000, "batch_size": 256, "seed": 42, "lr": 0.0001, "weight_decay": 0.0001, "checkpoint_every": 500, "choice": "fixed final", "main_backbone": "frozen", "wandb": false},
+  "authorization": "NOT_AUTHORIZED"
+}

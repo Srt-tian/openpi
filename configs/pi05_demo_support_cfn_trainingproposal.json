@@ -1,0 +1,33 @@
+{
+  "schema": "pi05-demo-support-cfn-pilot.v1",
+  "status": "NOT_AUTHORIZED",
+  "source_commit_preparation_parent": "736910cee854a2f8dd18c12402f293b6b0997eca",
+  "environment_split": {
+    "cloud": "Dataset reader and ~81 MiB feature cache output; no local GPU assumption.",
+    "worker77": "Single verified native feature-only websocket service and later CFN fit; tunnel required.",
+    "feature_service_role": "pi05_feature_probe_only.v1"
+  },
+  "dataset": "/pfs/user/data/libero/libero",
+  "dataset_info_sha256": "630630a1a4f07fc9fc1f1b2b7987ed3bd034bd8cffaaf8a0e6939ae9c468445d",
+  "dataset_tasks_sha256": "80bbbcdf623b7447c0f187af8ea70aa3a5c0018aaf56adba1731aeddcf18f5ff",
+  "split_manifest": "/pfs/user/data/physicalrsi_joint_plugins/PI05-LIBERO-TEST-V2-retry1/run_manifest.json",
+  "split": {"suite": "libero_10", "train_episodes": 359, "val_episodes": 20, "holdout_per_task": 2, "seed": 42},
+  "cloud_norm_reference": "/pfs/user/data/physicalrsi_pi05/pi05_libero/assets/physical-intelligence/libero/norm_stats.json",
+  "worker77_base": "/home/magiclab/data/physicalrsi_pi05_20261008/pi05_libero",
+  "worker77_tokenizer": "/home/magiclab/.cache/openpi",
+  "base_params_sha256": "b2556a934f90eb282d3008507a62829140e3206cda5859bcd4494c34d2296656",
+  "norm_sha256": "b3a44bb2810436fb62917decaea58bd4d9110255df527dea21e8fd40c960bd84",
+  "proposed_resource": "worker77 single RTX 4090D 48GB; availability must be freshly rechecked",
+  "cache_output": "/pfs/user/data/pi05_demo_support_cfn_pilot_20261009/cache",
+  "train_output": "/home/magiclab/data/pi05_v2_worker77_20261009/demo_support_cfn_pilot/train",
+  "network": {"external_downloads": false, "private_rpc": true, "local_vpn": false},
+  "estimated_private_traffic": {
+    "request_rgb_lower_bound_bytes": 8161984512,
+    "request_rgb_basis": "2 cameras * 256 * 256 * 3 bytes * 20757 selected frames; excludes protocol/state/prompt overhead",
+    "feature_payload_bytes": 85020672,
+    "code_bundle": "small, exact size measured only at deployment",
+    "cache_transfer_cloud_to_worker77": "approximately 81.1 MiB plus keys/manifest"
+  },
+  "wandb": false,
+  "requires_explicit_user_confirmation": true
+}
