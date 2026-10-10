@@ -77,7 +77,13 @@ outcome oracle are needed for this initial supervised model.
    3000 updates; six safe checkpoints every500 updates; fixed final3000, no
    resume/best selection. Task quotas rotate to avoid favoring the first six
    tasks. Fixed32 held-out flow losses are diagnostics, not success rates.
-   Validate the actual GPU trainer/image and add the owned-service task launcher.
+   The owned-service task launcher is implemented in
+   `scripts/launch_pi05_memory_task.sh`: authorized synthetic GPU head-gradient
+   smoke → frozen native feature/parity smoke → owned feature service and cache
+   → service termination → memory fit → final checkpoint hash verification.
+   A proposed14400-second body limit bounds this pilot; this is not a measured
+   cost estimate. Default mode creates no artifacts and starts no GPU work.
+   The actual GPU trainer/image remains unvalidated until an approved run.
 4. Integrate the adapter into the real ten-step sampler with explicit
    episode reset/executed-action updates and disabled/native GPU parity.
 5. Validate dependencies in the pinned image, measure a small authorized GPU

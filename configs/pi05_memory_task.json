@@ -1,0 +1,23 @@
+{
+  "schema": "pi05-memory-task.v1",
+  "task_name": "PI05-MEMORY-PILOT",
+  "image": "magiclab-cn-shanghai.cr.volces.com/magiclab/openpi_server@sha256:5d5fbba8f0cbe5ea64bee17f655085f485c197f8966c387464c46eba46d51f7c",
+  "image_validation": "registry identity resolved; exact-image memory GPU execution not yet tested",
+  "data": "/pfs/user/data/libero/libero",
+  "base": "/pfs/user/data/physicalrsi_pi05/pi05_libero",
+  "base_sha256": "b2556a934f90eb282d3008507a62829140e3206cda5859bcd4494c34d2296656",
+  "norm": "/pfs/user/data/physicalrsi_pi05/pi05_libero/assets/physical-intelligence/libero/norm_stats.json",
+  "norm_sha256": "b3a44bb2810436fb62917decaea58bd4d9110255df527dea21e8fd40c960bd84",
+  "split_manifest": "/pfs/user/data/physicalrsi_joint_plugins/PI05-LIBERO-TEST-V2-retry1/run_manifest.json",
+  "split_sha256": "549b15a84cd1e9dc0c01b111f143beed6d1e1f48f70f47425fb6d6b06bbba6c7",
+  "output": "/pfs/user/data/pi05_memory_pilot_20261010",
+  "port": 18672,
+  "wall_seconds": 14400,
+  "training": {"updates": 3000, "batch": 16, "seed": 42, "lr": 0.0001, "weight_decay": 0.0001, "clip": 1, "checkpoint_every": 500},
+  "checkpoint_choice": "fixed_final3000_not_best",
+  "flow_times": [1.0, 0.9, 0.8, 0.7],
+  "protocol": "private frozen feature service exits before fit; no benchmark, retry or resume",
+  "resource_proposal": "CLOUD one A80080GB; resolve fresh queue resource before submission",
+  "cost": "throughput and currency price unverified; proposed four-hour execution cap plus cleanup",
+  "authorization": "NOT_AUTHORIZED"
+}
